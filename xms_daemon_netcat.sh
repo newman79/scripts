@@ -14,6 +14,7 @@ DAEMONPID=$$
 
 echo "Starting daemon"
 echo "PID=$DAEMONPID"
+echo $PID > $DAEMONPIDFILE
 
 # Créé un fichier spécial qui est de type FIFO
 sudo rm -f $FIFOFILE 2>/dev/null
