@@ -44,7 +44,7 @@ def main():
 	
 	global thread_CpuGraber
 	
-	thread_CpuGraber = SystemUtils.CPUGraber(callbackFromCPUGraber)
+	thread_CpuGraber = SystemUtils.CPUGraber(callbackCpuLoads,callbackInfo)
 	
 	if len(thepslist) != 0:
 		for pid in thepslist:
@@ -66,14 +66,24 @@ def main():
 			sys.exit(0)
 		
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-# 									Appelee soit par le thread qui gere les arp, soit par le thread qui gere le tcpdump
+# 									Appelee par un thread
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-def callbackFromCPUGraber(msg):
+def callbackInfo(msg):
 	theNow 	= datetime.datetime.utcnow()
 	message = '[' + theNow.strftime('%Y%m%d_%H%M%S.%f') + '][' + progName + '][0] ' + msg 
 	print  message
 	sys.stdout.flush()
-		
+
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+# 									Appelee par un thread
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+def callbackCpuLoads(totalCpuLoad, selectedPids, selectedCpuLoad):
+	theNow 	= datetime.datetime.utcnow()
+	msg = 'load[wholeCpu]=' + str(totalCpuLoad).rjust(5) + "%   [" + repr(selectedPids) + "]=" + str(selectedCpuLoad).rjust(5) + "%"
+	message = '[' + theNow.strftime('%Y%m%d_%H%M%S.%f') + '][' + progName + '][0] ' + msg 	
+	print  message
+	sys.stdout.flush()
+	
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 if __name__ == '__main__':
 	main()

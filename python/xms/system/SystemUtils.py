@@ -12,9 +12,12 @@ import subprocess
 #										Classe thread de recuperation de la cpu des processus
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 class CPUGraber(Thread):
-    def __init__(self, notifyFunctionStr):
+
+	# notifyFunction prend en paramètre : wholeCpuLoad, selectedProcessesPidList, selectedProcessesCpuLoad
+    def __init__(self, notifyFunctionStr,notifyInfoFunctionStr):
 		Thread.__init__(self)
 		self.notifyFunction 	= notifyFunctionStr
+		self.notifyInfo 		= notifyInfoFunctionStr
 		self.myStop 			= "False"
 		self.myPidList 			= Set()
 		self.processesOver 		= 20
@@ -43,8 +46,8 @@ class CPUGraber(Thread):
 		HZ = float(os.sysconf(sc_clk_tck))
 
 		self.myStop = "False"
-		self.notifyFunction('Thread ProcessCPUGraber started with following PID selection : ')
-		self.notifyFunction(repr(self.myPidList))
+		self.notifyInfo('Thread ProcessCPUGraber started with following PID selection : ')
+		self.notifyInfo(repr(self.myPidList))
 		
 		self.curCpuUsed 			= 0
 		self.curCpuTotal 			= 0
@@ -61,6 +64,8 @@ class CPUGraber(Thread):
 				self.grabUsedAndTotalCPUTimes() # grab cpu times stats
 				CPU_TOTAL_DELTA = (self.newCpuTotal - self.curCpuTotal)
 				cpuUsedByAllProcessesPer 	= 100 * (self.newCpuUsed 			- self.curCpuUsed) 			/ CPU_TOTAL_DELTA
+				if self.newProcessesCpuUsed < self.curProcessesCpuUsed:
+					self.newProcessesCpuUsed = self.curProcessesCpuUsed
 				cpuProcUsedByProcessesPer 	= 100 * (self.newProcessesCpuUsed 	- self.curProcessesCpuUsed) / CPU_TOTAL_DELTA				
 				for pid in self.newUsedByProcess.keys():
 					if pid in self.curUsedByProcess.keys():
@@ -68,19 +73,18 @@ class CPUGraber(Thread):
 						if pidCpuUsed > self.processesOver:
 							process = subprocess.Popen("cat /proc/" + pid + "/cmdline",shell=True, stdout=subprocess.PIPE)
 							cmdLineCmd = process.communicate()[0]
-							self.notifyFunction("CPU=" + str(round(pidCpuUsed,1)).rjust(5) + "% for PID:" + pid + "," + cmdLineCmd.ljust(20))
+							self.notifyInfo("CPU=" + str(round(pidCpuUsed,1)).rjust(5) + "% for PID:" + pid + "," + cmdLineCmd.ljust(20))
 							
-				self.notifyFunction('load[wholeCpu]=' + str(round(cpuUsedByAllProcessesPer,1)).rjust(5) + "%   [" + repr(self.myPidList) + "]=" + str(round(cpuProcUsedByProcessesPer,1)).rjust(5) + "%")
+				self.notifyFunction(round(cpuUsedByAllProcessesPer,1), self.myPidList, round(cpuProcUsedByProcessesPer,1))
 							
-				self.curUsedByProcess		= self.newUsedByProcess
 				self.curCpuUsed 			= self.newCpuUsed
 				self.curCpuTotal 			= self.newCpuTotal
+				self.curUsedByProcess		= self.newUsedByProcess
 				self.curProcessesCpuUsed	= self.newProcessesCpuUsed
 		except KeyboardInterrupt:		
 			fin = True
-			self.endMainPgrm(True)
-			
-		self.notifyFunction('Thread ProcessCPUGraber ended')
+			#self.endMainPgrm(True)			
+		self.notifyInfo('Thread ProcessCPUGraber ended')
 		
     def grabUsedAndTotalCPUTimes(self):
 		result = float(0)
@@ -111,8 +115,8 @@ class CPUGraber(Thread):
 				statfilepath = os.path.join('/proc/', str(pid), 'stat')
 				with open(statfilepath, 'r') as pidfile:
 					proctimes = pidfile.readline()		
-					self.processes_usertime += float(proctimes.split(' ')[13])	# get usertime from /proc/<pid>/stat, 14 item
-					self.processes_systime 	+= float(proctimes.split(' ')[14])	# get systemtime from proc/<pid>/stat, 15 item					
+					self.processes_usertime += float(proctimes.split(' ')[13]) + float(proctimes.split(' ')[15])	# get usertime from /proc/<pid>/stat, 14 item
+					self.processes_systime 	+= float(proctimes.split(' ')[14]) + float(proctimes.split(' ')[16])	# get systemtime from proc/<pid>/stat, 15 item					
 			except IOError as erreur:
 				pass
 		self.newProcessesCpuUsed = self.processes_usertime + self.processes_systime

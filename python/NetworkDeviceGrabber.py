@@ -17,7 +17,7 @@ import thread
 
 
 global ht_macToDevice, ht_macToIp
-global workingDirPath,logFilePath, devicesDefPath
+global workingDirPath,logFilePath, devicesDefPath,devicesDefPathLastM
 global PatternWithIp,PatternJustMac,PatternTcpDump
 global UNKNOWN_IP_ADDR,tcpDumpNbPacket, NotifAtEachNBPackets
 global fileIn, eraseAfter, tcpdumpIn
@@ -33,10 +33,12 @@ global thread_OldDevicesEraser, thread_MacIpUpdater, thread_CpuGraber
 re.UNICODE
 ht_macToDevice		= dict()
 ht_macToIp			= dict()
+ht_macLastReceived	= dict()
 workingDirPath 		= os.path.dirname(os.path.realpath(__file__))
 progName 			= os.path.basename(__file__).split(".")[0]
 # Default values 
 devicesDefPath		= workingDirPath + "/MacWatcher.conf"
+devicesDefPathLastM = time.time()
 runDirPath 			= "/var/run/NDGraber"
 runDevicesDirPath 	= runDirPath + "/devices"
 daemonPidFile		= runDirPath + "/NDGraber.pid"
@@ -45,7 +47,7 @@ prevMacIpFileName 	= '/MacIp.previous'
 pidsFilePathName	= '/processpidtree.pids'
 
 cacheDirPath		= "/var/cache/NDGraber"
-eraseAfter			= 30
+eraseAfter			= 60
 tcpDumpNbPacket		= 8000
 NotifAtEachNBPackets= 1000
 
@@ -113,7 +115,7 @@ class OldDevicesEraser(Thread):
 			for candidateToRemove in fileCandidates:
 				lastModifiedFor = time.time() - os.path.getmtime(candidateToRemove)
 				if lastModifiedFor > eraseAfter: # 60s
-					LogMsg(0, "Remove " + candidateToRemove)
+					#LogMsg(0, "Remove " + candidateToRemove)
 					filename = os.path.basename(candidateToRemove)
 					mac = filename[:17] # nom d'un fichier mac_ip_device = XX:XX:XX:XX:XX:XX...
 					with verrou_ip:
@@ -299,7 +301,8 @@ def main():
 		#------------------------------------------ parser le fichier de conf mac device ----------------------------------------------------#
 		macDeviceConfFile	= open(devicesDefPath,'r')
 		macDeviceLines 		= macDeviceConfFile.readlines()
-		macDeviceConfFile.close()
+		macDeviceConfFile.close()		
+		devicesDefPathLastM = os.stat(devicesDefPath).st_mtime
 		#---------------------------------- Initialisation du set des adresses mac trouvees dans le snif ------------------------------------#
 		for macDeviceLine in macDeviceLines:
 			if macDeviceLine.rstrip() != "":
@@ -366,11 +369,24 @@ def main():
 				
 			while i < 200:
 				i = i + 1
-				time.sleep(0.05)			
+				time.sleep(0.05)
 				with verrou_mainProcess:
 					if mainProcessLoop == False:
-						break			
-		
+						break
+						
+			if os.stat(devicesDefPath).st_mtime > devicesDefPathLastM:
+				devicesDefPathLastM = os.stat(devicesDefPath).st_mtime
+				macDeviceConfFile	= open(devicesDefPath,'r')
+				macDeviceLines 		= macDeviceConfFile.readlines()
+				macDeviceConfFile.close()		
+				ht_macToDevice.clear()
+				for macDeviceLine in macDeviceLines:
+					if macDeviceLine.rstrip() != "":
+						macDeviceArray 	= macDeviceLine.split(' ')
+						mac 			= macDeviceArray[0].rstrip()
+						device 			= macDeviceArray[1].rstrip()
+						ht_macToDevice[mac]=device
+						
 	except KeyboardInterrupt:	
 		mainProcessLoop = False
 		
@@ -490,11 +506,13 @@ def ProcessOneTcpdumpStdoutLine(macIpLine):
 		if not m	: LogMsg(1,"Cannot process line '" + macIpLine + "'")
 		else		:
 			macAdress = m.group(1)
-			device = ""
-			if macAdress in ht_macToDevice.keys():
-				device = ht_macToDevice[macAdress]
-			UpdateDevice(macAdress,"",device)
-			
+			theNow = time.time()
+			if macAdress not in ht_macLastReceived.keys() or theNow - ht_macLastReceived[macAdress] > 0.05:
+				ht_macLastReceived[macAdress] = theNow			
+				device = ""
+				if macAdress in ht_macToDevice.keys():
+					device = ht_macToDevice[macAdress]
+				UpdateDevice(macAdress,"",device)			
 	except KeyboardInterrupt:	Terminate()
 	except BaseException as erreur:
 		LogMsg(2,"Exception when processing process line '" + macIpLine + "'")
