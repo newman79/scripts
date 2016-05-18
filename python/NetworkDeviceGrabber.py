@@ -39,14 +39,16 @@ progName 			= os.path.basename(__file__).split(".")[0]
 # Default values 
 devicesDefPath		= workingDirPath + "/MacWatcher.conf"
 devicesDefPathLastM = time.time()
-runDirPath 			= "/var/run/NDGraber"
+pgrmName			= "NDGrabber"
+runDirPath 			= "/var/run/" + pgrmName
 runDevicesDirPath 	= runDirPath + "/devices"
-daemonPidFile		= runDirPath + "/NDGraber.pid"
-logFilePath			= runDirPath + "/NDGraber.log"
+daemonPidFile		= runDirPath + "/NDGrabber.pid"
+logDirPath 			= "/var/log/" + pgrmName
+logFilePath			= logDirPath + "/" + datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S.%f') + "_NDGrabber.log"
 prevMacIpFileName 	= '/MacIp.previous'
 pidsFilePathName	= '/processpidtree.pids'
 
-cacheDirPath		= "/var/cache/NDGraber"
+cacheDirPath		= "/var/cache/NDGrabber"
 eraseAfter			= 60
 tcpDumpNbPacket		= 8000
 NotifAtEachNBPackets= 1000
@@ -111,7 +113,7 @@ class OldDevicesEraser(Thread):
     def eraseOldDevice(self):
 		with verrou_FileSysUpd:
 			fileCandidates = []
-			fileCandidates = glob.glob(self.myRDPath+ '/*')
+			fileCandidates = glob.glob(self.myRDPath + '/*')
 			for candidateToRemove in fileCandidates:
 				lastModifiedFor = time.time() - os.path.getmtime(candidateToRemove)
 				if lastModifiedFor > eraseAfter: # 60s
@@ -150,35 +152,52 @@ class MacIpUpdater(Thread):
 		except KeyboardInterrupt:	
 			with verrou_mainProcess:
 				mainProcessLoop = False
-		os.system('rm -f ' + daemonPidFile + ' 1>/dev/null 2>&1')
+			os.system('rm -f ' + daemonPidFile + ' 1>/dev/null 2>&1')				
+		except Exception as inst:	
+				fini = "fini"
+				
 		LogMsg(0, 'Thread MacIpUpdater ended')
-		
+	
     def updateMacIp(self):
-		arpCommand = "arp -a | sed \"s/[()]//g\" | awk '{print $4\"_\"$2}'  2>/dev/null"
-		proc = subprocess.Popen(arpCommand,shell=True,stdout=subprocess.PIPE)
-		while self.myStop == False:
+		subIp = 1
+		while subIp < 256 and self.myStop == False:
 			time.sleep(0.2)
-			line = proc.stdout.readline().rstrip()
-			if line != '':
-				with verrou_FileSysUpd:
-					macIp = line.rstrip().split("_")
-					if PatternJustMac.match(macIp[0]):
-						ip = macIp[1]
-						pingResult = os.system("ping -c1 -w1 " + ip + " 1>/dev/null 2>&1")
-						if pingResult == 0:
-							with verrou_ip:
-								ht_macToIp[macIp[0]]=ip
-								UpdateDevice(macIp[0], ip, "")
-						else:
-							with verrou_ip:
-								try:
-									del ht_macToIp[macIp[0]]
-									fileCandidates = glob.glob(runDevicesDirPath+ '/' + mac + '_*')
-									os.system("rm -f  " + fileCandidates[0] + " 1>/dev/null 2>/dev/null")
-								except:
-									erreur = True
-			else:
-				break
+			ip = "192.168.1." + str(subIp)
+			pingResult = os.system("timeout 0.02 ping -c1 -w1 " + ip + " 1>/dev/null 2>&1")
+			if pingResult == 0:
+				process = subprocess.Popen("arp " + ip + "| tail -n 1 | awk '{print $3}'",shell=True, stdout=subprocess.PIPE)
+				macAdress = process.communicate()[0].rstrip()					
+				with verrou_ip:
+					ht_macToIp[macAdress]=ip
+				UpdateDevice(macAdress, ip, "")						
+			subIp = subIp + 1
+				
+    # def updateMacIp(self):
+		# arpCommand = "arp -a | sed \"s/[()]//g\" | awk '{print $4\"_\"$2}'  2>/dev/null"
+		# proc = subprocess.Popen(arpCommand,shell=True,stdout=subprocess.PIPE)
+		# while self.myStop == False:
+			# time.sleep(0.1)
+			# line = proc.stdout.readline().rstrip()
+			# if line != '':
+				# with verrou_FileSysUpd:
+					# macIp = line.rstrip().split("_")
+					# if PatternJustMac.match(macIp[0]):
+						# ip = macIp[1]
+						# pingResult = os.system("timeout 0.2 ping -c1 -w1 " + ip + " 1>/dev/null 2>&1")
+						# if pingResult == 0:
+							# with verrou_ip:
+								# ht_macToIp[macIp[0]]=ip
+								# UpdateDevice(macIp[0], ip, "")
+						# else:
+							# with verrou_ip:
+								# try:
+									# del ht_macToIp[macIp[0]]
+									# fileCandidates = glob.glob(runDevicesDirPath+ '/' + mac + '_*')
+									# os.system("rm -f  " + fileCandidates[0] + " 1>/dev/null 2>/dev/null")
+								# except:
+									# erreur = True
+			# else:
+				# break
 				
     def stop(self):
 		self.myStop = True
@@ -253,7 +272,8 @@ def main():
 	if arguments['cacheDir'] 	!= None	: cacheDirPath		= arguments['cacheDir']
 	if arguments['devicesOut'] 	!= None	: runDevicesDirPath = arguments['devicesOut']
 	if arguments['log'] 		!= None	: logFilePath 		= arguments['log']
-			
+	
+	LogMsg(0, 'Start of daemon')
 	LogMsg(0, '---------- Context -----------')
 	LogMsg(0, '  devices           : ' + devicesDefPath)
 	LogMsg(0, '  runDevicesDirPath : ' + runDevicesDirPath)
@@ -280,6 +300,10 @@ def main():
 		os.system("sudo mkdir " 	+ runDevicesDirPath)
 		os.system("sudo chmod 777 " + runDevicesDirPath)
 
+	if not os.path.isdir(logDirPath):	
+		os.system("sudo mkdir " 	+ logDirPath)
+		os.system("sudo chmod 777 " + logDirPath)		
+		
 	# S assurer qu aucun autre daemon ne tourne deja
 	pidFileExists = os.system('sudo ls ' + daemonPidFile + ' 1>/dev/null 2>&1')
 	if pidFileExists == 0:
@@ -424,6 +448,7 @@ def Terminate():
 		macIpFileHandle.write("}\n");
 		macIpFileHandle.close()		
 		LogMsg(0, 'Main Process ended')
+		LogMsg(0, 'End of daemon')		
 		os.system("sudo kill -9 " + str(processId) + " 1>/dev/null 2>/dev/null") # Pour etre certain qu'il quitte
 		
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -493,7 +518,11 @@ def UpdateDevice(mac, ip, device):
 	except BaseException as erreur:
 		LogMsg(2,"UpdateDevice:Exception mac='" + mac + "' ip='" + ip + "' device='" + device + "' currentMacFilePath=" + currentMacFilePath + "' targetMacFilePath=" + targetMacFilePath)
 		LogMsg(2,"Error is " + str(erreur))
-		LogMsg(2,traceback.format_exc())		
+		try:
+			LogMsg(2,traceback.format_exc())
+		except:
+			pass
+			
 		pass
 		
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -505,14 +534,22 @@ def ProcessOneTcpdumpStdoutLine(macIpLine):
 		m = PatternTcpDump.match(macIpLine)
 		if not m	: LogMsg(1,"Cannot process line '" + macIpLine + "'")
 		else		:
-			macAdress = m.group(1)
+			macAdress1 = m.group(1)
+			# macAdress2 = m.group(2)
 			theNow = time.time()
-			if macAdress not in ht_macLastReceived.keys() or theNow - ht_macLastReceived[macAdress] > 0.05:
-				ht_macLastReceived[macAdress] = theNow			
+			if macAdress1 not in ht_macLastReceived.keys() or theNow - ht_macLastReceived[macAdress1] > 0.05:
+				ht_macLastReceived[macAdress1] = theNow			
 				device = ""
-				if macAdress in ht_macToDevice.keys():
-					device = ht_macToDevice[macAdress]
-				UpdateDevice(macAdress,"",device)			
+				if macAdress1 in ht_macToDevice.keys():
+					device = ht_macToDevice[macAdress1]
+				UpdateDevice(macAdress1,"",device)
+
+			# if macAdress2 not in ht_macLastReceived.keys() or theNow - ht_macLastReceived[macAdress2] > 0.05:
+				# if macAdress2 in ht_macToDevice.keys():
+					# ht_macLastReceived[macAdress2] = theNow			
+					# device = ht_macToDevice[macAdress2]
+					# UpdateDevice(macAdress2,"",device)
+
 	except KeyboardInterrupt:	Terminate()
 	except BaseException as erreur:
 		LogMsg(2,"Exception when processing process line '" + macIpLine + "'")

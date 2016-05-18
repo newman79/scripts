@@ -137,7 +137,7 @@ fi
 # Check if backup directory exists
 if [ ! -d "$BACKUP_DIR" ]; then
     LogFull "Backup directory $BACKUP_DIR doesn't exist, creating it now!"
-    mkdir $BACKUP_DIR
+    mkdir -p $BACKUP_DIR
 fi
 
 # Create a filename with datestamp for our current backup (without .img suffix)
@@ -147,10 +147,16 @@ OUTFILE="$BACKUP_DIR/$(date +%Y%m%d.%H%M%S)_backup_sdcard_allparts_mmcblk0p2_et_
 sync; sync
 
 # Shut down some services before starting backup process
-LogFull "Stopping some services before backup"
-sudo service apache2 stop 1>/dev/null 2>&1
-sudo service mysql stop 1>/dev/null 2>&1
-sudo service cron stop 1>/dev/null 2>&1
+LogFull "Stopping main services before backup"
+
+sudo service  xms_daemon_Grabber_Cam.sh				stop 1>/dev/null 2>&1
+sudo service  xms_daemon_Grabber_NetworkDevice.sh	stop 1>/dev/null 2>&1
+sudo service  xms_daemon_Grabber_SystemStats.sh		stop 1>/dev/null 2>&1
+sudo service  xms_daemon_Maintain_Lircd.sh			stop 1>/dev/null 2>&1
+
+sudo service apache2 								stop 1>/dev/null 2>&1
+sudo service mysql 									stop 1>/dev/null 2>&1
+sudo service cron 									stop 1>/dev/null 2>&1
 
 # Begin the backup process, should take about 1 hour from 8Gb SD card to HDD
 LogFull "Backing up SD card to USB HDD"
@@ -165,9 +171,15 @@ RESULT=$?
 
 # Start services again that where shutdown before backup process
 LogFull "Start the stopped services again"
-sudo service apache2 start 1>/dev/null 2>&1
-sudo service mysql start 1>/dev/null 2>&1
-sudo service cron start 1>/dev/null 2>&1
+sudo service mysql 									start 1>/dev/null 2>&1
+sudo service apache2 								start 1>/dev/null 2>&1
+sudo service cron 									start 1>/dev/null 2>&1
+
+sudo service  xms_daemon_Grabber_Cam.sh				start 1>/dev/null 2>&1
+sudo service  xms_daemon_Grabber_NetworkDevice.sh	start 1>/dev/null 2>&1
+sudo service  xms_daemon_Grabber_SystemStats.sh		start 1>/dev/null 2>&1
+sudo service  xms_daemon_Maintain_Lircd.sh			start 1>/dev/null 2>&1
+
 
 # If command has completed successfully, delete previous backups and exit
 if [ $RESULT = 0 ]; then

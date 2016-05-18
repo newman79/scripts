@@ -420,10 +420,10 @@ case "$1" in
 		#------------------------------------------------------------ Montage des lecteurs réseaux -----------------------------------------------------------#		
 		LogFull "---- Montage des lecteurs réseaux ----"
 				
-		ReMount "xms-fixe" 			"D$" 				"xavier" "free1979"
-		ReMount "xms-fixe-mus" 		"C$" 				"xavier" "aaaa"
-		ReMount "dlink-00c3c7" 		"Volume_1"			"xavier" "free1979"
-		ReMount "freebox" 			"Disque dur"		"xavier" "free1979"
+		ReMount "xms-fixe" 			"D$" 				"xavier" 
+		ReMount "xms-fixe-mus" 		"C$" 				"xavier" 
+		ReMount "dlink-00c3c7" 		"Volume_1"			"xavier" 
+		ReMount "freebox" 			"Disque dur"		"xavier" 
 		
 		#------------------------------------ Liste des server, player, renderer UPNP sur le réseau local ------------------------------------#		
 		LogFull "---- Analyse server, player, renderer UPNP sur le réseau local ----"
