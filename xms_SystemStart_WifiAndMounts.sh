@@ -366,9 +366,23 @@ ReMount()
 	sudo mount -v -t cifs   //$pcIP/"$CifsShare" /media/$NetBiosName -o user=$UserForMount,pass=$PwdForMount,file_mode=0777,dir_mode=0777 1>$cifsMountError 2>&1
 	ls /media/$NetBiosName >/dev/null 2>&1
 	mountResult=$?
-	CheckValueIs $mountResult 0 "failed ; for details, just execute this command : #cat $errorFile" "OK ; IP="$pcIP
+	CheckValueIs $mountResult 0 "failed ; for details, just execute this command : #cat $errorFile" "OK ; IP="$pcIP," /media/$NetBiosName"
 	return $mountResult
 }
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+ReMountAll()
+{
+	LogFull "---- Montage des lecteurs réseaux ----"
+			
+	ReMount "xms-fixe" 			"D" 				"xavier" 
+	ReMount "xms-fixe-mus" 		"C$" 				"xavier" 
+	ReMount "dlink-2a629f" 		"Volume_1"			"xavier" 
+	ReMount "freebox" 			"Disque dur"		"xavier" 
+}
+
 
 #########################################################################################################################
 #########################################################################################################################
@@ -418,12 +432,7 @@ case "$1" in
 		#fi
 	
 		#------------------------------------------------------------ Montage des lecteurs réseaux -----------------------------------------------------------#		
-		LogFull "---- Montage des lecteurs réseaux ----"
-				
-		ReMount "xms-fixe" 			"D$" 				"xavier" 
-		ReMount "xms-fixe-mus" 		"C$" 				"xavier" 
-		ReMount "dlink-00c3c7" 		"Volume_1"			"xavier" 
-		ReMount "freebox" 			"Disque dur"		"xavier" 
+		ReMountAll
 		
 		#------------------------------------ Liste des server, player, renderer UPNP sur le réseau local ------------------------------------#		
 		LogFull "---- Analyse server, player, renderer UPNP sur le réseau local ----"
@@ -440,6 +449,10 @@ case "$1" in
    ;;
    'freebox')
 	   Set_Internet_Via_MaFreeBox   
+   ;;
+   'remountAll')
+	   mkdir -p $sessionDir
+	   ReMountAll   
    ;;
    'stop')
       	#su - $OWNER -c "/home/owner/stop.sh"

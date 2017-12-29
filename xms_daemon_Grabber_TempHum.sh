@@ -1,6 +1,6 @@
 #!/bin/bash
 ### BEGIN INIT INFO
-# Provides:          xms_daemon_Grabber_SystemStat
+# Provides:          xms_daemon_Grabber_TempHum
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
@@ -11,8 +11,7 @@
 # ---------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # Pour créer un service, faire un lien symbolique : ln -s /etc/init.d/xms_daemon_<NomDeMonService>.sh /home/pi/scripts/xms_daemon_<NomDeMonService>.sh
 # Pour activer le service au boot
-#		sudo update-rc.d -f xms_daemon_<NomDeMonService>.sh defaults 5
-#		Le script xms_daemon_<NomDeMonService>.sh doit être situé sans /etc/init.d
+#		sudo update-rc.d -f /etc/init.d/xms_daemon_<NomDeMonService>.sh defaults 5
 # 	OU
 # 		1) créer un service /etc/init.d/xms_lirc_maintain_svc.sh     et mettre un case in   start), un stop) et un status) dedans.
 # 		2) Le start se contentera de faire un  /home/pi/scripts/xms_<program>.sh &
@@ -25,14 +24,14 @@
 
 #Variables globales de ce daemon
 DIR=/home/pi/scripts/python/
-DAEMON=$DIR/SystemStatGrabber.py
-DAEMON_NAME=xms_daemon_Grabber_SystemStats.sh
+DAEMON=$DIR/TempHumGrabber.py
+DAEMON_NAME=xms_daemon_Grabber_TempHum.sh
 
-RUNDIR=/var/run/StatGrabber
+RUNDIR=/var/run/TempHumGrabber
 DAEMONPID=$$
 DAEMONPIDFILE=$RUNDIR/$DAEMON_NAME.pid
-DAEMON_USER=pi
-DAEMON_OPTS="-i 4"
+DAEMON_USER=root
+DAEMON_OPTS="-i 30"
 
 red=`tput setaf 1`
 green=`tput setaf 2`
@@ -60,7 +59,7 @@ do_start () {
 		return
 	fi
     log_daemon_msg "Starting $DAEMON_NAME daemon"
-    start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMON -- $DAEMON_OPTS
+    sudo start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER -g root --startas $DAEMON -- $DAEMON_OPTS
     log_end_msg $?
 	sleep 1
 	disp_status

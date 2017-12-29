@@ -21,8 +21,10 @@ red=`tput setaf 1`
 green=`tput setaf 2`
 reset=`tput sgr0`
 
-SUBDIR=ImageSystem
-BACKUP_DIR=/media/xms-fixe/RasberryPi2/$SUBDIR
+HOSTNAME=dlink-2a629f
+SHARE=Partages
+SUBDIR=ImageSystemRBPI2
+BACKUP_DIR=/media/$HOSTNAME/$SHARE/$SUBDIR
 
 #########################################################################################################################
 # 						Functions definition 																			#
@@ -121,6 +123,8 @@ AssertOrQuitValueIs $? 0 "Mise en place permission repertoire de log OK" "Mise e
 #AssertOrQuitValueIs $? 0 "Mise en place permission fichier de log OK" "Mise en place permission fichier de log KO"
 
 LogFull "Debut traitement"
+SCRIPT_LAUCNHED_WITH=$(whoami)
+LogFull "Script executed by user : $SCRIPT_LAUCNHED_WITH"
 
 # First check if pv package is installed, if not, install it first
 PACKAGESTATUS=`dpkg -s pv | grep Status`;
@@ -131,20 +135,26 @@ if [ $? -eq 0 ]; then
 else
     LogFull "Package 'pv' is NOT installed."
     LogFull "Installing package 'pv'. Please wait..."
-    sudo apt-get -y install pv
+    sudo apt-get -yq install pv
+fi
+which pv | grep 'pv' 1>/dev/null 2>&1
+if [ $? -ne 0 ]; then
+	LogFull "Package 'pv' is NOT installed, or is not accessible. Aborting, exiting with code 1"
+	exit 1
 fi
 
 # Check if backup directory exists
 if [ ! -d "$BACKUP_DIR" ]; then
-    LogFull "Backup directory $BACKUP_DIR doesn't exist, creating it now!"
+    LogFull "Backup directory $BACKUP_DIR doesn't exist, try to create it now!"
     mkdir -p $BACKUP_DIR
+	if [ $? -ne 0 ]; then
+		LogFull "Could not create backup dir ($BACKUP_DIR), exiting with code 2"
+		exit 2
+	fi	
 fi
 
 # Create a filename with datestamp for our current backup (without .img suffix)
 OUTFILE="$BACKUP_DIR/$(date +%Y%m%d.%H%M%S)_backup_sdcard_allparts_mmcblk0p2_et_mmcblk0p1"
-
-# First sync disks
-sync; sync
 
 # Shut down some services before starting backup process
 LogFull "Stopping main services before backup"
@@ -157,23 +167,31 @@ sudo service  xms_daemon_Maintain_Lircd.sh			stop 1>/dev/null 2>&1
 sudo service apache2 								stop 1>/dev/null 2>&1
 sudo service mysql 									stop 1>/dev/null 2>&1
 sudo service cron 									stop 1>/dev/null 2>&1
+sudo service shellinabox							stop 1>/dev/null 2>&1
 
 # Begin the backup process, should take about 1 hour from 8Gb SD card to HDD
 LogFull "Backing up SD card to USB HDD"
 LogFull "This will take some time depending on your SD card size and read performance. Please wait..."
 
+# First sync disks
+sync; sync
+sleep 3
+
 SDSIZE=`sudo blockdev --getsize64 /dev/mmcblk0`;
+LogFull "Backup has started ..."
 sudo pv -tpreb /dev/mmcblk0 -s $SDSIZE | dd of=$OUTFILE bs=1M conv=sync,noerror iflag=fullblock
 #echo aaa > $OUTFILE
 
 # Wait for DD to finish and catch result
 RESULT=$?
+LogFull "Backup is done !"
 
 # Start services again that where shutdown before backup process
 LogFull "Start the stopped services again"
 sudo service mysql 									start 1>/dev/null 2>&1
 sudo service apache2 								start 1>/dev/null 2>&1
 sudo service cron 									start 1>/dev/null 2>&1
+sudo service shellinabox							start 1>/dev/null 2>&1
 
 sudo service  xms_daemon_Grabber_Cam.sh				start 1>/dev/null 2>&1
 sudo service  xms_daemon_Grabber_NetworkDevice.sh	start 1>/dev/null 2>&1
@@ -206,7 +224,7 @@ if [ $RESULT = 0 ]; then
 			echo -n "" # must keep $element
 		else
 			LogFull "Suppression de la session $element" 
-			sudo rm -r -f $BACKUP_DIR/$element
+			sudo rm -r -f $sessionDirParent/$element
 		fi
 	done
     LogFull "Process backups purge"
@@ -218,6 +236,7 @@ if [ $RESULT = 0 ]; then
 		previousyear=$(($curyear-1))
 		dateToCompare=$previousyear$curmonth$curday
 		if [ $jour -gt $dateToCompare ]; then
+			LogFull "Conservation du backup $element" 
 			echo -n "" # must keep $element
 		else
 			LogFull "Suppression du backup $element" 
@@ -236,10 +255,10 @@ if [ $RESULT = 0 ]; then
 # Else remove attempted backup file
 else
     LogFull "Backup failed! Previous backup files untouched"
-    LogFull "Please check there is sufficient space on the HDD"
+    LogFull "Please check space on target and target's network share authorization"
     sudo rm -f $OUTFILE
     LogFull "Echec traitement"
-    exit 1
+    exit 3
 fi
 
 #########################################################################################################################

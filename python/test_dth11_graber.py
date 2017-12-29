@@ -1,0 +1,97 @@
+import RPi.GPIO as GPIO
+import time
+
+def bin2dec(string_num):
+    return str(int(string_num, 2))
+
+data = []
+
+# for GPIO numbering, 	choose BCM  GPIO.setmode(GPIO.BCM)  
+# for pin numbering, 	choose BOARD  GPIO.setmode(GPIO.BOARD) 
+GPIO.setmode(GPIO.BCM)
+
+GPIO.setup(4,GPIO.OUT)
+GPIO.output(4,GPIO.HIGH) 	# valeur haute (pull up)
+time.sleep(0.025)
+GPIO.output(4,GPIO.LOW) 	# valeur haute (pull down)
+time.sleep(0.02)
+
+GPIO.setup(4, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Mettre le GPIO en mode lecture, en le pullant préalable à UP
+
+# Graber la reponse du DTH11
+for i in range(0,500):
+    data.append(GPIO.input(4))
+
+bit_count 		= 0
+tmp 			= 0
+count 			= 0
+HumidityBit 	= ""
+TemperatureBit 	= ""
+crc 			= ""
+
+# La réponse du DTH11 est dans data
+try:
+	# aller au premier element a 0 (entete de la reponse du DTH11)
+	while data[count] == 1:
+		tmp = 1
+		count = count + 1
+
+	for i in range(0, 32): # 32 valeurs (de 8 bits ?) a decoder 
+		# --> 1ere a 8eme valeur (0 a 7) 	==> humidity
+		# --> 9eme a 16eme valeur (8 a 15) 	==> rien ?
+		# --> 17re a 24eme valeur (16 a 23) ==> temperature
+		# --> 25eme a 32eme valeur (24 a 31)==> rien ?
+		bit_count = 0
+
+		while data[count] == 0: # aller au premier element a 1
+			tmp = 1
+			count = count + 1
+
+		while data[count] == 1: # aller au premier element a 0; à partir d'ici, on compte le nombre de bit envoyé par le DTH11
+			bit_count = bit_count + 1
+			count = count + 1
+
+		if bit_count > 3:  # au moins 4 data a 1 ==> cas possibles : 00001111, 00011111, 00111111, 01111111, 11111111
+			if i>=0 and i<8:
+				HumidityBit 	= HumidityBit    + "1"
+			if i>=16 and i<24:
+				TemperatureBit 	= TemperatureBit + "1"
+		else:				# au plus 3 data a 1 ==> cas possibles : 00000111, 00000011, 00000001, 00000000
+			if i>=0 and i<8:
+				HumidityBit 	= HumidityBit    + "0"
+			if i>=16 and i<24:
+				TemperatureBit = TemperatureBit  + "0"
+
+except:
+	print "ERR_RANGE"
+	exit(0)
+
+# construction du crc
+try:
+	for i in range(0, 8):
+		bit_count = 0
+
+		while data[count] == 0:
+			tmp = 1
+			count = count + 1
+
+		while data[count] == 1:
+			bit_count = bit_count + 1
+			count = count + 1
+
+		if bit_count > 3:
+			crc = crc + "1"
+		else:
+			crc = crc + "0"
+except:
+	print "ERR_RANGE"
+	exit(0)
+
+Humidity 	= bin2dec(HumidityBit)
+Temperature = bin2dec(TemperatureBit)
+
+if int(Humidity) + int(Temperature) - int(bin2dec(crc)) == 0:
+	print Humidity
+	print Temperature
+else:
+	print "ERR_CRC"
