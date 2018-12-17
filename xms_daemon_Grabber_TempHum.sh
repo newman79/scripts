@@ -31,7 +31,7 @@ RUNDIR=/var/run/TempHumGrabber
 DAEMONPID=$$
 DAEMONPIDFILE=$RUNDIR/$DAEMON_NAME.pid
 DAEMON_USER=root
-DAEMON_OPTS="-i 30"
+DAEMON_OPTS="-i 600"
 
 red=`tput setaf 1`
 green=`tput setaf 2`

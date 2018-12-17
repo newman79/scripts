@@ -19,7 +19,7 @@ DIR=/home/pi/scripts/python/
 DAEMON=$DIR/NetworkDeviceGrabber.py
 DAEMON_NAME=xms_daemon_Graber_NetworkDevice.sh
 
-# Add any command line options for your daemon here
+# Add any command line options for your daemon here.
 DAEMON_OPTS=""
 
 # This next line determines what user the script runs as.
@@ -71,13 +71,13 @@ disp_status () {
 		ps -p $(cat $PYTHONPIDFILE 2>/dev/null) 1>/dev/null 2>&1
 		pythonProcessNotRunning=$?
 	fi
-	
+
 	daemonIsRunning=0
 	ps -p $(cat $DAEMONPIDFILE 2>/dev/null) 1>/dev/null 2>&1
 	if [ $? -eq 0 ]; then
 		daemonIsRunning=1
 	fi
-			
+
 	echo -n "Status of daemon $DAEMON_NAME : "
 	if [ $daemonIsRunning -eq 1 ]; then
 		if [ $pythonProcessNotRunning -eq 0 ]; then
@@ -106,7 +106,7 @@ case "$1" in
         do_start
         ;;
     status)
-		disp_status			
+		disp_status
         #status_of_proc "$DAEMON_NAME" "$DAEMON" && exit 0 || exit $? # status_of_proc is a function of /lib/lsb/init-functions
         ;;
     *)

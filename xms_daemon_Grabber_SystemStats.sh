@@ -32,7 +32,7 @@ RUNDIR=/var/run/StatGrabber
 DAEMONPID=$$
 DAEMONPIDFILE=$RUNDIR/$DAEMON_NAME.pid
 DAEMON_USER=pi
-DAEMON_OPTS="-i 4"
+DAEMON_OPTS="-i 300"
 
 red=`tput setaf 1`
 green=`tput setaf 2`

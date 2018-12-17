@@ -20,7 +20,7 @@ class TempHumGraber(Thread):
 		Thread.__init__(self)
 		self.notifyFunction 	= notifyFunctionStr
 		self.myStop 			= "False"
-		self.GrabInterval		= 60.0
+		self.GrabInterval		= 120.0
 		self.countSleep			= 120.0
 		self.dth11_pin 			= pin
 		self.sleepInter 		= self.GrabInterval / self.countSleep

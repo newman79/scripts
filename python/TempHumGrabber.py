@@ -12,7 +12,10 @@ import signal
 import subprocess
 import argparse
 import datetime
+import mysql.connector
+
 from xms.capteurs import TempHumUtils
+
 
 global verrou_log,progName, MainLoop
 
@@ -161,7 +164,7 @@ def main():
 			if cpt > 300:
 				cpt=0
 				# retention des fichiers de trace
-				cmd = 'find ' + StatDirPath + '-name "*json" -mtime 365 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done			'
+				cmd = 'find ' + StatDirPath + ' -name "*json" -mtime 365 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done			'
 				os.system(cmd)
 	except KeyboardInterrupt:	
 		result = 0
@@ -177,11 +180,43 @@ def main():
 
 def callbackTempHumTrace(temperature,humidity):
 	global firstLine
-	msg = ' temp:' + str(round(temperature,2)) + ", hum:" + str(round(humidity,2))
+	temperatureStr = str(round(temperature,2))
+	humidityStr = str(round(humidity,2))
+	registerEvent(temperatureStr, humidityStr)
+
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+# 									Appelee soit par le thread qui gere les arp, soit par le thread qui gere le tcpdump
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+def registerEvent(temperatureStr, humidityStr):
+	msg = ' temp:' + temperatureStr + ", hum:" + humidityStr
 	message = '%f' % time.time() +  ":" + msg 	
 	print  message
 	LogItem(message)
 	
+	theNow 	= datetime.datetime.utcnow()
+	measureDateStr = theNow.strftime('%Y-%m-%d %H:%M:%S')
+
+	#-------- Debut connection a la base de donnee --------#
+	cnx = mysql.connector.connect(user='xavier', database='Evenements', password='free1979')
+	cursor = cnx.cursor()
+	#-------- recuperer le device id pour lequel enregistrer l evenement --------#
+	cursor.execute("select id from TR_DeviceName where nomDNS='xms-rbpi'")
+	result = cursor.fetchone()
+	deviceId = result[0]
+	#deviceIdStr = str(deviceId)
+	
+	#-------- enregistrer l evenement --------#
+	request_insert_measure_event = ("INSERT INTO EventLanDevice(id,date,state,ip,measure1,measure2) VALUES(%s,%s,%s,%s,%s,%s)")
+	data_measure_event = (deviceId, measureDateStr, 6, "192.168.1.253", temperatureStr,humidityStr)
+	# Insert 
+	cursor.execute(request_insert_measure_event, data_measure_event)
+	#insertedEventRowId = cursor.lastrowid
+
+	#-------- Commit et fin de connection a la base de donnee --------#
+	cnx.commit()
+	cursor.close()
+	cnx.close()	
+
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 									
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
