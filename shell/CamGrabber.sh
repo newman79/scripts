@@ -15,7 +15,7 @@ CurrentDateTimeNano()
 }
 
 SCRIPTNAME=`basename "$0"`
-SCRIPTDIRNAME=`SCRIPTDIRNAME "$0"`
+SCRIPTDIRNAME=`dirname "$0"`
 
 #Variables globales de ce daemon
 VARDIRNAME=CamGrabber
@@ -28,6 +28,10 @@ NASSHARE=/media/dlink-2a629f/Partages
 
 LOGDIR=/var/log/$VARDIRNAME
 LOGFILE=$LOGDIR/$(CurrentDateTime)_$SCRIPTNAME.log
+
+CAMERA_CONF_FILE="$SCRIPTDIRNAME/$SCRIPTNAME.conf"
+VLC_RECORD_PROCESSES="$SCRIPTDIRNAME/$SCRIPTNAME.vlc.pids"
+VLC_RECORD_PROCESSES_OLD="$SCRIPTDIRNAME/$SCRIPTNAME.vlc.old.pids"
 
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -53,40 +57,20 @@ ReMount()
 	
 	if [ ! "$test"X = X ]; then # error
 		LogFull "nmblookup : hôte $NetBiosName non trouvé" 
+		LogFull $test
 		return 1
 	fi
 	
-	# hote trouvé
-	#IFS= 
-	ipAndName=$(cat $nmbLookupOutputFile | grep $NetBiosName | grep -v querying | sed -n 1p)
-	# fonctionne en bash mais ne fonctionne pas en sh
-	# ipAndNameArray="( $ipAndName )"
-	# pcIP="${ipAndNameArray[0]}"	 
-	# on contourne par exemple comme ceci
-
-	ipAndNameFile=$LOGDIR/"ipAndNameFile"	
-	echo $ipAndName > $ipAndNameFile
-	ipAndNameWithoutInfSup=$LOGDIR/"ipAndNameWithoutInfSup"
-	cat $ipAndNameFile | sed -e s/\</L/g | sed -e s/\>/R/g > $ipAndNameWithoutInfSup
-	IFS=' ' read pcIP ccc < $ipAndNameWithoutInfSup
-	pcIP=$pcIP
-	# je lit le 4e élement dans $pcIP	
-	#	tokens=( $string )
-	#	pcIP=${tokens[4]}
-
-	echo "$pcIP" | grep '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*' 1>/dev/null
-	if [ $? -ne 0 ]; then 
-		LogFull "hôte $NetBiosName non trouvé avec utilitaire nmblookup : $pcIP"
-		return 2
-	else
-		echo -n "ip="$pcIP" "
-	fi
-		
 	# montage
 	sudo umount /media/$NetBiosName 2>/dev/null	
 	cifsMountError="$LOGDIR/cifs_"$NetBiosName"_"$CifsShare"_errors".log
 	cifsMountError=$(echo $cifsMountError | sed -e "s/ /_/g")
-	sudo mount -v -t cifs   //$pcIP/"$CifsShare" /media/$NetBiosName -o user=$UserForMount,pass=$PwdForMount,file_mode=0777,dir_mode=0777 1>$cifsMountError 2>&1
+	LogFull $NetBiosName
+	LogFull $CifsShare
+	LogFull $UserForMount
+	LogFull $PwdForMount
+	LogFull $cifsMountError
+	sudo mount -v -t cifs   //$NetBiosName/"$CifsShare" /media/$NetBiosName -o user=$UserForMount,pass=$PwdForMount,file_mode=0777,dir_mode=0777 1>$cifsMountError 2>&1
 	ls /media/$NetBiosName >/dev/null 2>&1
 	mountResult=$?
 	if [ $mountResult -eq 0 ]; then 
@@ -108,6 +92,10 @@ LogFull()
 #-----------------------------------------------------------------------------------------------------------------------#
 MustRun()
 {
+	# for tests
+	#echo -n 0
+	#return
+
 	if [ ! -f $DAEMONPIDFILE ]; then
 		echo -n 0
 		return
@@ -121,6 +109,59 @@ MustRun()
 }
 
 #-----------------------------------------------------------------------------------------------------------------------#
+ProcessRecordingCheckIteration()
+{
+	LogFull "Start new vlc capture for each cam"
+	
+	while read row; do
+		camRow=`echo $row | sed -e "s/ //g" | grep "^[^#;]"`
+		if [ "X$camRow" != "X" ]; then
+			camName=`echo $camRow | cut -d~ -f1`
+			camUrl=`echo $camRow | cut -d~ -f2`  
+			LogFull "Process cam : $camName, url : $camUrl"
+			
+			newVideoFile=$NASSHARE/Cam/$(CurrentDateTimeNano)_Grab-$camName.avi
+			
+			#cvlc -q --sout "#transcode{acodec=mp4a,ab=128,channels=2,samplerate=44100}:std{accesle,mux=mp4,dst=$newVideoFile}" "http://192.168.1.84/cgi-bin/hi3510/snap.cgi?&-getstream" 1>/dev/null 2>&1 &
+			
+			LogFull ".   cvlc -q --sout #transcode{acodec=mp4a,ab=128,channels=2,samplerate=44100}:std{accesle,mux=mp4,dst=$newVideoFile} $camUrl"
+			cvlc --sout "#transcode{acodec=mp4a,ab=32,channels=2,samplerate=44100}:std{access=file,mux=mp4,dst=$newVideoFile}" $camUrl &>/$CAMERA_CONF_FILE"$camName"".log" &						
+			
+			vlcPid=$!
+			RegisterNewRecordProcessPid $vlcPid
+			sleep 1
+		fi
+	done < $CAMERA_CONF_FILE
+}
+
+#-----------------------------------------------------------------------------------------------------------------------#
+RegisterNewRecordProcessPid()
+{
+	LogFull "  New process pid is : $1"
+	echo $1 >> $VLC_RECORD_PROCESSES
+}
+
+#-----------------------------------------------------------------------------------------------------------------------#
+# Kill all vlc processes ; their pid have been backed up in $VLC_RECORD_PROCESSES file
+KillAllRegisteredProcessesPid()
+{
+	LogFull "Kill all vlc processes"
+	
+	while read row; do
+		killCommand="sudo kill -INT $row"
+		LogFull ".   $killCommand"
+		$killCommand 2>/dev/null
+	done < $VLC_RECORD_PROCESSES_OLD
+	
+	sudo rm -f $VLC_RECORD_PROCESSES_OLD
+}
+
+
+#-----------------------------------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------------------------------#
+#                                                  START OF PROGRAM                                                     #
+#-----------------------------------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------------------------------#
 sudo mkdir $LOGDIR 1>/dev/null 2>&1
 sudo chmod 777 $LOGDIR 1>/dev/null 2>&1
 
@@ -128,40 +169,39 @@ LogFull "Start of daemon"
 
 sudo mkdir $RUNDIR 2>/dev/null
 sudo chmod 777 $RUNDIR 2>/dev/null
+sudo chmod 777 $DAEMONPIDFILE 2>/dev/null
 sudo echo -n $DAEMONPID > $DAEMONPIDFILE
 
-minimumFN=20
-snapRemoteFilePath=$RUNDIR/RemoteFilePath
-ip_camera=192.168.1.84
+KillAllRegisteredProcessesPid
 
 while [ $(MustRun) -eq 1 ]; do
 	
 	# Vérifier que le partage est acessible et remonter le partage
-	accessible=1
+	shareIsAccessible=1
 	ls $NASSHARE 1>/dev/null 2>&1
 	if [ $? -ne 0 ]; then
-		LogFull "Partage inaccessible : $NASSHARE"
-		accessible=0
-		ReMount "dlink-00c3c7" 		"Volume_1"			"xavier"
+		LogFull "Share is not accessible : $NASSHARE"
+		shareIsAccessible=0
+		ReMount "dlink-2a629f" 		"Volume_1"			"xavier"
 		sleep 3
 		ls $NASSHARE 1>/dev/null 2>&1		
 		if [ $? -eq 0 ]; then
-			accessible=1
+			shareIsAccessible=1
 		fi
 	fi
 	
-	if [ $accessible -eq 1 ]; then
+	if [ $shareIsAccessible -eq 1 ]; then
 	
-		# Recherche et supprime les fichier de plus de 1 jour
+		# Find and remove file created for more than 7 days
 		find $NASSHARE/Cam/ -name "*.avi" -mtime +7 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done
 		find $LOGDIR 		-name "*.log" -mtime +7 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done
 		
-		newVideoFile=$NASSHARE/Cam/$(CurrentDateTimeNano)_Grab.avi
-		LogFull "Process new grab : $newVideoFile"	
-		cvlc -q --sout "#transcode{acodec=mp4a,ab=128,channels=2,samplerate=44100}:std{accesle,mux=mp4,dst=$newVideoFile}" "http://192.168.1.84/cgi-bin/hi3510/snap.cgi?&-getstream" 1>/dev/null 2>&1 &
-		lastCommandPid=$!
+		LogFull "Process new file loop recording rotation iteration"	
+		
+		mv $VLC_RECORD_PROCESSES $VLC_RECORD_PROCESSES_OLD
+		ProcessRecordingCheckIteration
 		sleep 1
-		sudo kill -INT $oldLastCommandPid 2>/dev/null # Tue le dernier process fils de capture lancé par ce programme
+		KillAllRegisteredProcessesPid
 		
 		cpt=0
 		while [ $cpt -le 3600 ]; do
@@ -172,10 +212,9 @@ while [ $(MustRun) -eq 1 ]; do
 			fi
 		done
 		
-		oldLastCommandPid=$lastCommandPid
 	fi
 done
 
-sudo kill -INT $oldLastCommandPid 2>/dev/null
+KillAllRegisteredProcessesPid
 
 LogFull "End of daemon"
