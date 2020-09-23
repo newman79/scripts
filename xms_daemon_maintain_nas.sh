@@ -1,6 +1,6 @@
 #!/bin/bash
 ### BEGIN INIT INFO 
-# Provides: xmscusto
+# Provides: xms_daemon_maintain_nas
 # Required-Start:   
 # Required-Stop:  
 # Default-Start: 1 2 3 4 5
@@ -113,6 +113,7 @@ ReMountNas()
 	sudo umount /media/$NetBiosName 2>/dev/null	
 
 	PwdForMount=`cat /home/pi/scripts/MountLoginPassword.cfg | grep "$NetBiosName " | grep "$UserForMount " | awk '{print $3}' | /home/pi/xmsEncodeDecode -d`
+	LogFull "sudo mount -v -t cifs   //$NetBiosName/$CifsShare /media/$NetBiosName -o user=$UserForMount,pass=$PwdForMount,file_mode=0777,dir_mode=0777 2>&1"	
 	sudo mount -v -t cifs   //$NetBiosName/"$CifsShare" /media/$NetBiosName -o user=$UserForMount,pass=$PwdForMount,file_mode=0777,dir_mode=0777 2>&1
 	
 	ls /media/$NetBiosName >/dev/null 2>&1
