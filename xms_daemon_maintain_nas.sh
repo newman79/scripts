@@ -12,8 +12,12 @@
 # Pour mettre ce script au démrrage de rasbian : Nom commence par S pour le démarrage, K pour l'arret.
 # chmod 777 /etc/init.d/xms_daemon_maintain_nas.sh
 # chown pi:pi /etc/init.d/xms_daemon_maintain_nas.sh
-# ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc5.d/S05xms_daemon_maintain_nas.sh
-# ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc5.d/K05xms_daemon_maintain_nas.sh
+# sudo ln -s /home/pi/scripts/xms_daemon_maintain_nas.sh /etc/init.d/xms_daemon_maintain_nas.sh
+# sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc2.d/S03xms_daemon_maintain_nas.sh
+# sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc3.d/S03xms_daemon_maintain_nas.sh
+# sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc4.d/S03xms_daemon_maintain_nas.sh
+# sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc5.d/S03xms_daemon_maintain_nas.sh
+# sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc5.d/K03xms_daemon_maintain_nas.sh
 
 # ou update-rc.d xms_custo defaults 5 (5 est le 5eme à etre exécuté)
 # et update-rc.d -f xms_custo remove
