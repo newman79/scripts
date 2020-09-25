@@ -201,6 +201,15 @@ case "$1" in
 			echo "${red}OFF${reset}"
 		fi
    ;;
+   'setup')
+        sudo ln -s /home/pi/scripts/xms_daemon_maintain_nas.sh /etc/init.d/xms_daemon_maintain_nas.sh 2>/dev/null
+        sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc2.d/S03xms_daemon_maintain_nas.sh 2>/dev/null
+        sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc3.d/S03xms_daemon_maintain_nas.sh 2>/dev/null
+        sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc4.d/S03xms_daemon_maintain_nas.sh 2>/dev/null
+        sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc5.d/S03xms_daemon_maintain_nas.sh 2>/dev/null
+        sudo ln -s /etc/init.d/xms_daemon_maintain_nas.sh /etc/rc5.d/K03xms_daemon_maintain_nas.sh 2>/dev/null
+        echo " Setup done : symbolic os startup handling has been created !"
+   ;;
 esac
 #########################################################################################################################
 # 						                         SERVICE DEFINITION END
