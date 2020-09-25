@@ -40,7 +40,7 @@ dirname=`dirname "$0"`
 scriptSessionsDirRoot=/home/pi/xms_maintain_nas
 sessionDir=$scriptSessionsDirRoot/$horodate
 logfile="$sessionDir/$scriptName_$horodate.log"
-pidFile=/var/log/MaintainNAS/"$scriptName".pid
+pidFile=$scriptSessionsDirRoot/"$scriptName".pid
 
 NetBiosName=dlink-2a629f
 CifsShare=Volume_1
@@ -152,6 +152,8 @@ doLoop()
 #########################################################################################################################
 # 						                         SERVICE DEFINITION START
 #########################################################################################################################
+
+mkdir $scriptSessionsDirRoot 2>/dev/null
 
 #---------------------- daemon command handling --------------------------#
 case "$1" in
