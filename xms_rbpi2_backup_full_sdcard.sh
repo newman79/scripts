@@ -177,10 +177,19 @@ LogFull "This will take some time depending on your SD card size and read perfor
 sync; sync
 sleep 3
 
-SDSIZE=`sudo blockdev --getsize64 /dev/mmcblk0`;
+
 LogFull "Backup has started ..."
-sudo pv -tpreb /dev/mmcblk0 -s $SDSIZE | dd of=$OUTFILE bs=1M conv=sync,noerror iflag=fullblock
-#echo aaa > $OUTFILE
+
+#SDSIZE=`sudo blockdev --getsize64 /dev/mmcblk0`;
+#sudo pv -tpreb /dev/mmcblk0 -s $SDSIZE | dd of=$OUTFILE bs=1M conv=sync,noerror iflag=fullblock
+
+EMPTY_SPACE_AFTER=1000000
+STARTP2=`sudo blockdev --report /dev/mmcblk0p2 | grep /dev/mmcb | sed -e "s/\s\+/ /g" | cut -d' ' -f5`
+SIZEP2=`sudo blockdev --getsize64 /dev/mmcblk0p2`;
+COUNT=1000000
+SDSIZEINBYTE=$(($STARTP2+$SIZEP2+$EMPTY_SPACE_AFTER))
+SDSIZE=$(( $SDSIZEINBYTE/$COUNT ))
+sudo pv -tpreb /dev/mmcblk0 -s $SDSIZEINBYTE | dd of=$OUTFILE bs=$SDSIZE count=$COUNT
 
 # Wait for DD to finish and catch result
 RESULT=$?
