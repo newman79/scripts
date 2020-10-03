@@ -164,6 +164,7 @@ sudo service  xms_daemon_Grabber_NetworkDevice.sh	stop 1>/dev/null 2>&1
 sudo service  xms_daemon_Grabber_SystemStats.sh		stop 1>/dev/null 2>&1
 sudo service  xms_daemon_Maintain_Lircd.sh			stop 1>/dev/null 2>&1
 
+sudo service tomcat7 								stop 1>/dev/null 2>&1
 sudo service apache2 								stop 1>/dev/null 2>&1
 sudo service mysql 									stop 1>/dev/null 2>&1
 sudo service cron 									stop 1>/dev/null 2>&1
@@ -201,11 +202,12 @@ sudo service mysql 									start 1>/dev/null 2>&1
 sudo service apache2 								start 1>/dev/null 2>&1
 sudo service cron 									start 1>/dev/null 2>&1
 sudo service shellinabox							start 1>/dev/null 2>&1
+sudo service tomcat7.sh							start 1>/dev/null 2>&1
 
 sudo service  xms_daemon_Grabber_Cam.sh				start 1>/dev/null 2>&1
-sudo service  xms_daemon_Grabber_NetworkDevice.sh	start 1>/dev/null 2>&1
-sudo service  xms_daemon_Grabber_SystemStats.sh		start 1>/dev/null 2>&1
-sudo service  xms_daemon_Maintain_Lircd.sh			start 1>/dev/null 2>&1
+#sudo service  xms_daemon_Grabber_NetworkDevice.sh	start 1>/dev/null 2>&1
+#sudo service  xms_daemon_Grabber_SystemStats.sh		start 1>/dev/null 2>&1
+#sudo service  xms_daemon_Maintain_Lircd.sh			start 1>/dev/null 2>&1
 
 
 # If command has completed successfully, delete previous backups and exit
