@@ -1,43 +1,42 @@
 #!/bin/bash
 
-#-----------------------------------------------------------------------------------------------------------------------#
+horodate=$(date +"%Y%m%d_%H%M%S")
+curmonth=`date +%m`
+curday=`date +%d`
+curyear=`date +%Y`
+
+scriptName=`basename "$0"`
+scriptSessionsDirRoot=/home/pi/$scriptName
+sessionDir=$scriptSessionsDirRoot/$horodate
+logfile="$sessionDir/$scriptName_$horodate.log"
+pidfile=$scriptSessionsDirRoot/$scriptName.pid
+lastlogfile="$scriptSessionsDirRoot/lastlog.log"
+
+# Variables globales liées à LIRCD
+lircdLogFile=/home/pi/domotique/IR_remotes/lircd.log
+lircdListenPort=49999
+
+#########################################################################################################################
+#                                                Logs Functions definition
+#########################################################################################################################
 CurrentDateTime()
 {
 	res=$(date +"%Y%m%d_%H%M%S")
 	echo $res
 }
 
-SCRIPTNAME=`basename "$0"`
-SCRIPTDIRNAME=`SCRIPTDIRNAME "$0"`
-
-#Variables globales de ce daemon
-VARDIRNAME=MaintainLircd
-RUNDIR=/var/run/$VARDIRNAME
-DAEMONPID=$$
-DAEMON_NAME=xms_daemon_Maintain_Lircd.sh			
-DAEMONPIDFILE=$RUNDIR/$DAEMON_NAME.pid
-
-
-LOGDIR=/var/log/$VARDIRNAME
-LOGFILE=$LOGDIR/$(CurrentDateTime)_$SCRIPTNAME.log
-
-# Variables globales liées à LIRCD
-lircdLogFile=/home/pi/domotique/IR_remotes/lircd.log
-lircdListenPort=49999
-
-
 #-----------------------------------------------------------------------------------------------------------------------#
 LogFull()
 {
 	arg1="$1"
-	echo [$(CurrentDateTime)][$SCRIPTNAME] "$arg1"
-	echo [$(CurrentDateTime)][$SCRIPTNAME] "$arg1" >> $LOGFILE
+	echo [$(CurrentDateTime)][$scriptName] "$arg1"
+	echo [$(CurrentDateTime)][$scriptName] "$arg1" >> $logfile
 }
 
-
-#-----------------------------------------------------------------------------------------------------------------------#
-# Identify usb branch of a device given its idVendor and its idProduct
-#-----------------------------------------------------------------------------------------------------------------------#
+#########################################################################################################################
+#                                              Functions definition 																	
+#########################################################################################################################
+#----------------------------- Identify usb branch of a device given its idVendor and its idProduct --------------------#
 function IdentifyUsbBranchWith_IdVendorAndIdProduct()
 {
 	if [ X$1 = X ]; then
@@ -135,29 +134,35 @@ function IsLircdForUsbIrtoyRunning()
 #-----------------------------------------------------------------------------------------------------------------------#
 MustRun()
 {
-	if [ ! -f $DAEMONPIDFILE ]; then
-		echo -n 0
-		return
+	res=$(ls $pidfile 2>/dev/null | wc -l)
+	if [ $res -eq 1 ]; then
+		psId=$(cat $pidfile)
+		if [ "x" == "x"$psId ]; then
+			psId=1
+		fi
+		res=$(ps -p $psId -f | grep $scriptName | wc -l)
 	fi
-	pidFilePid=$(cat $DAEMONPIDFILE)
-	if [ "$pidFilePid" !=  "$$" ]; then
-		echo -n 0
-		return
-	fi
-	echo -n 1
+	echo -n $res
 }
 
-#-----------------------------------------------------------------------------------------------------------------------#
-sudo mkdir $LOGDIR 1>/dev/null 2>&1
-sudo chmod 777 $LOGDIR 1>/dev/null 2>&1
+#---------------------------------------------------------------------------------------#
+#--------------------------------------- PROGRAM START ---------------------------------#
+#---------------------------------------------------------------------------------------#
+
+#---------------------- create new session dir and root folders ------------------------#
+mkdir -p $sessionDir 2>/dev/null
+
+sudo rm -f $lastlogfile
+sudo ln -s $logfile $lastlogfile
 
 LogFull "Start of daemon"
 
-sudo mkdir $RUNDIR 2>/dev/null
-sudo chmod 777 $RUNDIR 2>/dev/null
-sudo echo -n $DAEMONPID > $DAEMONPIDFILE
+res=$(ls $pidfile 2>/dev/null | wc -l)
+if [ $res -eq 0 ]; then
+	sudo echo $$ > $pidfile	
+fi
 
-# Boucle principale du daemon. Elle s'arrêtera quand le fichier $DAEMONPIDFILE aura été supprimé.
+# Boucle principale du daemon. Elle s'arrêtera quand le fichier $pidfile aura été supprimé.
 while [ $(MustRun) -eq 1 ] ; do # If pid file exist, I assume that this daemon shoud run since it is its pid
 
 	devUsbBranchPath=`IdentifyUsbBranchWith_IdVendorAndIdProduct 04d8 f58b`
@@ -258,7 +263,7 @@ while [ $(MustRun) -eq 1 ] ; do # If pid file exist, I assume that this daemon s
 		#		sudo /home/pi/domotique/IR_remotes/usbreset /dev/bus/usb/$thebusnum/$thedevnum
 		#		# 124 est le code de sortie de timeout si il a eu besoin de killer usbreset
 		#		if [ $? -eq 124 ]; then 
-		#		    message="$SCRIPTNAME :  Malheureusement usbreset a echoue ! il faut rebrancher manuellement le device usb (IrDroid ou autre)"
+		#		    message="$scriptName :  Malheureusement usbreset a echoue ! il faut rebrancher manuellement le device usb (IrDroid ou autre)"
 		#			echo $message >> $lircdLogFile
 		#			LogFull $message
 		#		fi

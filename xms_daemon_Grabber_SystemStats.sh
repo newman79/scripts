@@ -5,38 +5,46 @@
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Démon systemstat
-# Description:       Put a long description of the service here
+# Short-Description: Enregistre/historise l'état du systeme
+# Description:       Enregistre/historise l'état du systeme
 ### END INIT INFO
-# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-# Pour créer un service, faire un lien symbolique : ln -s /etc/init.d/xms_daemon_<NomDeMonService>.sh /home/pi/scripts/xms_daemon_<NomDeMonService>.sh
-# Pour activer le service au boot
-#		sudo update-rc.d -f xms_daemon_<NomDeMonService>.sh defaults 5
-#		Le script xms_daemon_<NomDeMonService>.sh doit être situé sans /etc/init.d
-# 	OU
-# 		1) créer un service /etc/init.d/xms_lirc_maintain_svc.sh     et mettre un case in   start), un stop) et un status) dedans.
-# 		2) Le start se contentera de faire un  /home/pi/scripts/xms_<program>.sh &
-# 		3) Le stop se contentera de supprimer le fichier $DAEMONPIDFILE. Et de vérifier qu'il n'y aie plus de process nommé /etc/init.d/xms_lirc_maintain_svc.sh (avec pidof par exemple)
-# 		4) Le status regardera si le fichier $DAEMONPIDFILE et si au moins un process nommé /etc/init.d/xms_lirc_maintain_svc.sh existe bien (avec pidof par exemple)
-#  		 Apres cela, on peut faire service xms_lirc_maintain_svc [start|stop|status]
-# 		5) Rajouter l'exécution du daemon au démarrage et l'arrêt à l'arrêt du système d'exploitation
-#  		ln -s /etc/init.d/xms_lirc_maintain_svc.sh /etc/rc.d/rc3.d/S43_lircd_maintain.sh
-# 			ln -s /etc/init.d/x
 
-#Variables globales de ce daemon
-DIR=/home/pi/scripts/python/
-DAEMON=$DIR/SystemStatGrabber.py
-DAEMON_NAME=xms_daemon_Grabber_SystemStats.sh
+#---- Pour créer un service (service <serviceName> start | stop | status ) : ----#
+# sudo ln -s /home/pi/scripts/xms_daemon_Grabber_SystemStat.sh /etc/init.d/xms_daemon_Grabber_SystemStat.sh
+# chmod 777 /etc/init.d/xms_daemon_Grabber_SystemStat.sh
+# chown pi:pi /etc/init.d/xms_daemon_Grabber_SystemStat.sh
 
-RUNDIR=/var/run/StatGrabber
-DAEMONPID=$$
-DAEMONPIDFILE=$RUNDIR/$DAEMON_NAME.pid
-DAEMON_USER=pi
-DAEMON_OPTS="-i 300"
+#---- Pour mettre ce script au démrrage de rasbian : Nom commence par S pour le démarrage, K pour l'arret. ----#
+# sudo ln -s /etc/init.d/xms_daemon_Grabber_SystemStat.sh /etc/rc4.d/S03xms_daemon_Grabber_SystemStat.sh
+# sudo ln -s /etc/init.d/xms_daemon_Grabber_SystemStat.sh /etc/rc5.d/S03xms_daemon_Grabber_SystemStat.sh
+# sudo ln -s /etc/init.d/xms_daemon_Grabber_SystemStat.sh /etc/rc5.d/K03xms_daemon_Grabber_SystemStat.sh
+# etc ...
 
+# ou sudo update-rc.d xms_daemon_Grabber_SystemStat.sh defaults 5 (5 est le 5eme à etre exécuté)
+# et sudo update-rc.d -f xms_daemon_Grabber_SystemStat.sh remove
+ 
+#########################################################################################################################
+#                                                     Global variables
+#########################################################################################################################
+# colors
 red=`tput setaf 1`
 green=`tput setaf 2`
 reset=`tput sgr0`
+
+scriptName=`basename "$0"`
+
+#dirname=`dirname "$0"`
+# DIR=$dirname/shell/   ==> will set DIR to /etc/init.d etc ...
+
+DIR=/home/pi/scripts/python/
+DAEMONFILENAME=SystemStatGrabber.py
+DAEMONFULLPATH=$DIR/$DAEMONFILENAME
+
+scriptSessionsDirRoot=/home/pi/$DAEMONFILENAME
+
+DAEMONPIDFILE=$scriptSessionsDirRoot/$DAEMONFILENAME.pid
+DAEMON_USER=pi
+DAEMON_OPTS="-i 300"
 
 #########################################################################################################################
 # 										Daemon Functions definition 													#
@@ -45,57 +53,62 @@ reset=`tput sgr0`
 
 #-----------------------------------------------------------------------------------------------------------------------#
 do_start () {
+	sudo chmod 777 $DAEMONFULLPATH
+	sudo chown pi:pi $DAEMONFULLPATH
 
-	sudo mkdir -p $RUNDIR 2>/dev/null
-	sudo chmod 777 $RUNDIR 2>/dev/null
-	
-	daemonNotRunning=1
-	ls $DAEMONPIDFILE >/dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		ps -p $(cat $DAEMONPIDFILE 2>/dev/null) 1>/dev/null 2>&1
-		daemonNotRunning=$?
+	res=$(get_status)
+	if [ $res -eq 1 ]; then
+		echo "${red}Daemon $scriptName is already running ${reset}"
+		exit 1
 	fi
-	if [ $daemonNotRunning -eq 0 ]; then
-		echo "${red}Daemon $DAEMON_NAME is already running ${reset}"
-		return
-	fi
-    log_daemon_msg "Starting $DAEMON_NAME daemon"
-    start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMON -- $DAEMON_OPTS
+	log_daemon_msg "Starting $scriptName"
+
+    start-stop-daemon -v --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMONFULLPATH -- $DAEMON_OPTS
     log_end_msg $?
-	sleep 1
 	disp_status
 }
 
 #-----------------------------------------------------------------------------------------------------------------------#
 do_stop () {
 
-    log_daemon_msg "Stopping $DAEMON_NAME daemon"
-	#sudo killall cvlc 2>/dev/null	
-	sudo rm -f $DAEMONPIDFILE 	
+    log_daemon_msg "Stopping $scriptName daemon"
+	sudo rm -f $DAEMONPIDFILE 2>/dev/null
 	sleep 3
-	disp_status	
+	disp_status
+}
+
+#-----------------------------------------------------------------------------------------------------------------------#
+get_status() {
+	res=$(ls $DAEMONPIDFILE 2>/dev/null | wc -l)
+	if [ $res -eq 1 ]; then
+		psId=$(cat $DAEMONPIDFILE)
+		if [ "x" == "x"$psId ]; then
+			psId=1
+		fi
+		res=$(ps -p $psId -f | grep $DAEMONFILENAME | wc -l)
+	fi
+	echo -n $res
 }
 
 #-----------------------------------------------------------------------------------------------------------------------#
 disp_status () {
-
-	daemonNotRunning=1
-	ls $DAEMONPIDFILE >/dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		ps -p $(cat $DAEMONPIDFILE 2>/dev/null) 1>/dev/null 2>&1
-		daemonNotRunning=$?
-	fi
-	
-	echo -n "Status of daemon $DAEMON_NAME : "
-	if [ $daemonNotRunning -eq 0 ]; then
-		echo "${green}[Running]${reset}"
+	echo -n "status : "
+	res=$(get_status)
+	if [ $res -eq 1 ]; then 
+		echo "${green}ON${reset}"
 	else
-		echo "${red}[Stopped]${reset}"
+		echo "${red}OFF${reset}"
 	fi
 }
 
-#-----------------------------------------------------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------------------------------------------------#
+#########################################################################################################################
+# 						                         SERVICE DEFINITION START
+#########################################################################################################################
+
+mkdir -p $scriptSessionsDirRoot 2>/dev/null
+
+
+#---------------------- daemon command handling --------------------------#
 case "$1" in
 
     start|stop)
@@ -113,4 +126,3 @@ case "$1" in
         exit 1
         ;;
 esac
-exit 0

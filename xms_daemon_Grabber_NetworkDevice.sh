@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 ### BEGIN INIT INFO
 # Provides:          xms_daemon_Grabber_NetworkDevice
 # Required-Start:    $remote_fs $syslog
@@ -9,31 +9,43 @@
 # Description:       Récupere et raffraichit la liste des équipements du réseau local
 ### END INIT INFO
 
-# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-# Pour créer un service, faire un lien symbolique : ln -s /etc/init.d/xms_daemon_<NomDeMonService>.sh /home/pi/scripts/xms_daemon_<NomDeMonService>.sh
-# Pour activer le service au boot
-#		sudo update-rc.d -f /etc/init.d/xms_daemon_<NomDeMonService>.sh defaults 5
+#---- Pour créer un service (service <serviceName> start | stop | status ) : ----#
+# sudo ln -s /home/pi/scripts/xms_daemon_Grabber_NetworkDevice.sh /etc/init.d/xms_daemon_Grabber_NetworkDevice.sh
+# chmod 777 /etc/init.d/xms_daemon_Grabber_NetworkDevice.sh
+# chown pi:pi /etc/init.d/xms_daemon_Grabber_NetworkDevice.sh
 
-# Change the next 3 lines to suit where you install your script and what you want to call it
-DIR=/home/pi/scripts/python/
-DAEMON=$DIR/NetworkDeviceGrabber.py
-DAEMON_NAME=xms_daemon_Graber_NetworkDevice.sh
+#---- Pour mettre ce script au démrrage de rasbian : Nom commence par S pour le démarrage, K pour l'arret. ----#
+# sudo ln -s /etc/init.d/xms_daemon_Grabber_NetworkDevice.sh /etc/rc4.d/S03xms_daemon_Grabber_NetworkDevice.sh
+# sudo ln -s /etc/init.d/xms_daemon_Grabber_NetworkDevice.sh /etc/rc5.d/S03xms_daemon_Grabber_NetworkDevice.sh
+# sudo ln -s /etc/init.d/xms_daemon_Grabber_NetworkDevice.sh /etc/rc5.d/xms_daemon_Grabber_NetworkDevice.sh
+# etc ...
 
-# Add any command line options for your daemon here.
-DAEMON_OPTS=""
+# ou sudo update-rc.d xms_daemon_Grabber_NetworkDevice.sh defaults 5 (5 est le 5eme à etre exécuté)
+# et sudo update-rc.d -f xms_daemon_Grabber_NetworkDevice.sh remove
 
-# This next line determines what user the script runs as.
-# Root generally not recommended but necessary if you are using the Raspberry Pi GPIO from Python.
-DAEMON_USER=pi
-
-# The process ID of the script when it runs is stored here:
-RUNDIR=/var/run/NDGrabber
-DAEMONPIDFILE=$RUNDIR/$DAEMON_NAME.pid # custom de Xavier ; attention, ce script a déjà python a déjà un mécanisme
-PYTHONPIDFILE=$RUNDIR/NDGrabber.pid
-
+#########################################################################################################################
+#                                                     Global variables
+#########################################################################################################################
+# colors
 red=`tput setaf 1`
 green=`tput setaf 2`
 reset=`tput sgr0`
+
+scriptName=`basename "$0"`
+
+#dirname=`dirname "$0"`
+# DIR=$dirname/shell/   ==> will set DIR to /etc/init.d etc ...
+
+DIR=/home/pi/scripts/python
+DAEMONFILENAME=NetworkDeviceGrabber.py
+DAEMONFULLPATH=$DIR/$DAEMONFILENAME
+
+scriptSessionsDirRoot=/home/pi/$DAEMONFILENAME
+
+DAEMONPIDFILE=$scriptSessionsDirRoot/$DAEMONFILENAME.pid
+# This next line determines what user the script runs as. Root generally not recommended but necessary, when, for instance, you are using the Raspberry Pi GPIO from Python.
+DAEMON_USER=pi
+DAEMON_OPTS=""
 
 #########################################################################################################################
 # 										Daemon Functions definition 													#
@@ -42,11 +54,17 @@ reset=`tput sgr0`
 
 #-----------------------------------------------------------------------------------------------------------------------#
 do_start () {
-	sudo mkdir $RUNDIR 2>/dev/null
-	sudo chmod 777 $RUNDIR 2>/dev/null
+	sudo chmod 777 $DAEMONFULLPATH
+	sudo chown pi:pi $DAEMONFULLPATH
 
-    log_daemon_msg "Starting $DAEMON_NAME daemon"
-    start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMON -- $DAEMON_OPTS
+	res=$(get_status)
+	if [ $res -eq 1 ]; then
+		echo "${red}Daemon $scriptName is already running ${reset}"
+		exit 1
+	fi
+	log_daemon_msg "Starting $scriptName"
+
+    start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMONFULLPATH -- $DAEMON_OPTS
     log_end_msg $?
 	disp_status
 }
@@ -54,64 +72,63 @@ do_start () {
 #-----------------------------------------------------------------------------------------------------------------------#
 do_stop () {
 
-    log_daemon_msg "Stopping $DAEMON_NAME daemon"
-	sudo rm -f $PYTHONPIDFILE 2>/dev/null
+    log_daemon_msg "Stopping $scriptName daemon"
+	sudo rm -f $DAEMONPIDFILE 2>/dev/null
 	sleep 6
 	disp_status
 }
 
 #-----------------------------------------------------------------------------------------------------------------------#
-disp_status () {
-
-	pythonpidFileExist=0
-	pythonProcessNotRunning=1
-	ls $PYTHONPIDFILE >/dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		pythonpidFileExist=1
-		ps -p $(cat $PYTHONPIDFILE 2>/dev/null) 1>/dev/null 2>&1
-		pythonProcessNotRunning=$?
-	fi
-
-	daemonIsRunning=0
-	ps -p $(cat $DAEMONPIDFILE 2>/dev/null) 1>/dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		daemonIsRunning=1
-	fi
-
-	echo -n "Status of daemon $DAEMON_NAME : "
-	if [ $daemonIsRunning -eq 1 ]; then
-		if [ $pythonProcessNotRunning -eq 0 ]; then
-			echo "${green}[Running]${reset}"
-		else
-			echo "${green}[INCONSISTENT_Running]${reset} : Daemon is still running but no python pid file"
+get_status() {
+	res=$(ls $DAEMONPIDFILE 2>/dev/null | wc -l)
+	if [ $res -eq 1 ]; then
+		psId=$(cat $DAEMONPIDFILE)
+		if [ "x" == "x"$psId ]; then
+			psId=1
 		fi
-	else
-		if [ $pythonProcessNotRunning -ne 0 ]; then
-			echo "${red}[Stopped]${reset}"
-		else
-			echo "${red}[INCONSISTENT_Stopped]${reset} : Daemon seems to be killed but "
-		fi
+		res=$(ps -p $psId -f | grep $DAEMONFILENAME | wc -l)
 	fi
+	echo -n $res
 }
 
 #-----------------------------------------------------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------------------------------------------------#
+disp_status () {
+	echo -n "status : "
+	res=$(get_status)
+	if [ $res -eq 1 ]; then 
+		echo "${green}ON${reset}"
+	else
+		echo "${red}OFF${reset}"
+	fi
+}
+
+#########################################################################################################################
+# 						                         SERVICE DEFINITION START
+#########################################################################################################################
+
+mkdir -p $scriptSessionsDirRoot 2>/dev/null
+sudo chmod 777 $scriptSessionsDirRoot
+sudo chown pi:pi $scriptSessionsDirRoot
+
+mkdir -p $scriptSessionsDirRoot/cache/NDGrabber 2>/dev/null
+sudo chmod 777 $scriptSessionsDirRoot/cache/NDGrabber
+sudo chown pi:pi $scriptSessionsDirRoot/cache/NDGrabber
+
+mkdir -p $scriptSessionsDirRoot/devices 2>/dev/null
+sudo chmod 777 $scriptSessionsDirRoot/devices
+sudo chown pi:pi $scriptSessionsDirRoot/devices
+
+#---------------------- daemon command handling --------------------------#
 case "$1" in
 
     start|stop)
         do_${1}
         ;;
-    restart|reload|force-reload)
-        do_stop
-        do_start
-        ;;
     status)
 		disp_status
-        #status_of_proc "$DAEMON_NAME" "$DAEMON" && exit 0 || exit $? # status_of_proc is a function of /lib/lsb/init-functions
         ;;
     *)
-        echo "Usage: /etc/init.d/$DAEMON_NAME {start|stop|restart|reload|force-reload|status}"
+        echo "Usage: /etc/init.d/$scriptName {start|stop|status}"
         exit 1
         ;;
 esac
-exit 0

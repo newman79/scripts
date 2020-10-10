@@ -1,6 +1,5 @@
 #! /usr/bin/python
 # -*-coding:utf-8 -*
-# Liste les renderers presents sur le reseau local a partir du fichier passe en parametre
 import time
 import sys
 import os
@@ -17,7 +16,7 @@ import thread
 
 
 global ht_macToDevice, ht_macToIp
-global workingDirPath,logFilePath, devicesDefPath,devicesDefPathLastM
+global workingDirPath,logFilePath, devicesDefPath,devicesDefPathLastM, progNameWithExt, rootSessionPath
 global PatternWithIp,PatternJustMac,PatternTcpDump
 global UNKNOWN_IP_ADDR,tcpDumpNbPacket, NotifAtEachNBPackets
 global fileIn, eraseAfter, tcpdumpIn
@@ -35,20 +34,25 @@ ht_macToDevice		= dict()
 ht_macToIp			= dict()
 ht_macLastReceived	= dict()
 workingDirPath 		= os.path.dirname(os.path.realpath(__file__))
-progName 			= os.path.basename(__file__).split(".")[0]
+
+progNameWithExt		= os.path.basename(__file__)
+progName 			= progNameWithExt.split(".")[0]
 # Default values 
 devicesDefPath		= workingDirPath + "/MacWatcher.conf"
 devicesDefPathLastM = time.time()
 pgrmName			= "NDGrabber"
-runDirPath 			= "/var/run/" + pgrmName
-runDevicesDirPath 	= runDirPath + "/devices"
-daemonPidFile		= runDirPath + "/NDGrabber.pid"
-logDirPath 			= "/var/log/" + pgrmName
-logFilePath			= logDirPath + "/" + datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S.%f') + "_NDGrabber.log"
+
+rootSessionPath 	= "/home/pi/" + progNameWithExt
+
+daemonPidFile		= rootSessionPath + "/" + progNameWithExt + ".pid"
+
+cacheDirPath		= rootSessionPath + "/cache/NDGrabber"
+runDevicesDirPath 	= rootSessionPath + "/devices"
+logFilePath			= rootSessionPath + "/" + datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S.%f') + "_NDGrabber.log"
+
 prevMacIpFileName 	= '/MacIp.previous'
 pidsFilePathName	= '/processpidtree.pids'
 
-cacheDirPath		= "/var/cache/NDGrabber"
 eraseAfter			= 60
 tcpDumpNbPacket		= 8000
 NotifAtEachNBPackets= 1000
@@ -300,21 +304,11 @@ def main():
 		os.system("sudo mkdir " 	+ runDevicesDirPath)
 		os.system("sudo chmod 777 " + runDevicesDirPath)
 
-	if not os.path.isdir(logDirPath):	
-		os.system("sudo mkdir " 	+ logDirPath)
-		os.system("sudo chmod 777 " + logDirPath)		
-		
 	# S assurer qu aucun autre daemon ne tourne deja
-	pidFileExists = os.system('sudo ls ' + daemonPidFile + ' 1>/dev/null 2>&1')
-	if pidFileExists == 0:
-		process = subprocess.Popen('sudo cat ' + daemonPidFile,shell=True, stdout=subprocess.PIPE)
-		prevDaemonPid = process.communicate()[0].rstrip()
-		resPrevDP = os.system('ps -p ' + prevDaemonPid + ' 1>/dev/null 2>&1')
-		if resPrevDP == 0:
-			LogMsg(3, 'This daemon is already running. pid : ' + str(fatherPID))
-			LogMsg(3, 'To restart it, you must add -restart option in commandline args')
-			sys.exit(3)
-	os.system('sudo echo ' + str(processId) + " 1>" + daemonPidFile)
+	result = os.system('ls ' + daemonPidFile + ' 1>/dev/null 2>&1')
+	if result == 0:
+		processId = os.getpid()
+		os.system('sudo echo ' + str(processId) + " 1>" + daemonPidFile)
 	
 	global fatherProcessCmdLine
 	process = subprocess.Popen('sudo cat /proc/' + str(fatherPID) + '/cmdline',shell=True, stdout=subprocess.PIPE)

@@ -49,6 +49,8 @@ class TempHumGraber(Thread):
 					cpt += 1
 					
 				#--------------- try to get values from capteur ---------#
+				#self.notifyFunction(24,70)
+				#time.sleep(1)
 				cptTest = 0
 				while cptTest < 50 and self.myStop == False:
 					cptTest = cptTest + 1

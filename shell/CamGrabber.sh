@@ -1,6 +1,30 @@
 #!/bin/bash
 
-#-----------------------------------------------------------------------------------------------------------------------#
+horodate=$(date +"%Y%m%d_%H%M%S")
+curmonth=`date +%m`
+curday=`date +%d`
+curyear=`date +%Y`
+
+scriptName=`basename "$0"`
+scriptDirPath=`dirname "$0"`
+scriptSessionsDirRoot=/home/pi/$scriptName
+#sessionDir=$scriptSessionsDirRoot/$horodate
+sessionDir=$scriptSessionsDirRoot
+logfile="$sessionDir/$scriptName_$horodate.log"
+pidfile=$scriptSessionsDirRoot/$scriptName.pid
+lastlogfile="$scriptSessionsDirRoot/lastlog.log"
+
+NetBiosName="dlink-2a629f"
+CifsShare="Volume_1"
+UserForMount="xavier"
+NASSHARE=/media/$NetBiosName/Partages
+CAMERA_CONF_FILE="$scriptDirPath/$scriptName.conf"
+VLC_RECORD_PROCESSES="$sessionDir/$scriptName.vlc.pids"
+VLC_RECORD_PROCESSES_OLD="$sessionDir/$scriptName.vlc.old.pids"
+
+#########################################################################################################################
+#                                                Logs Functions definition
+#########################################################################################################################
 CurrentDateTime()
 {
 	res=$(date +"%Y%m%d_%H%M%S")
@@ -14,98 +38,43 @@ CurrentDateTimeNano()
 	echo $res
 }
 
-SCRIPTNAME=`basename "$0"`
-SCRIPTDIRNAME=`dirname "$0"`
-
-#Variables globales de ce daemon
-VARDIRNAME=CamGrabber
-RUNDIR=/var/run/$VARDIRNAME
-DAEMONPID=$$
-DAEMON_NAME=xms_daemon_Grabber_Cam.sh
-DAEMONPIDFILE=$RUNDIR/$DAEMON_NAME.pid
-
-NASSHARE=/media/dlink-2a629f/Partages
-
-LOGDIR=/var/log/$VARDIRNAME
-LOGFILE=$LOGDIR/$(CurrentDateTime)_$SCRIPTNAME.log
-
-CAMERA_CONF_FILE="$SCRIPTDIRNAME/$SCRIPTNAME.conf"
-VLC_RECORD_PROCESSES="$SCRIPTDIRNAME/$SCRIPTNAME.vlc.pids"
-VLC_RECORD_PROCESSES_OLD="$SCRIPTDIRNAME/$SCRIPTNAME.vlc.old.pids"
-
-
-#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-ReMount()
-{
-	NetBiosName=$1
-	CifsShare=$2
-	UserForMount=$3
-		
-	PwdForMount=`cat /home/pi/scripts/MountLoginPassword.cfg | grep "$NetBiosName " | grep "$UserForMount " | awk '{print $3}' | /home/pi/xmsEncodeDecode -d`
-
-	if [ ! -d /media/$NetBiosName ]; then 
-		mkdir /media/$NetBiosName
-	fi
-
-	LogFull "	Mounting //$NetBiosName/$CifsShare   user=$UserForMount "
-	# cette commande utilise le module samba --> samba doit etre installé	
-	nmbLookupOutputFile=$LOGDIR"/nmblookup_"$NetBiosName"_"$CifsShare".log"
-	nmbLookupOutputFile=$(echo $nmbLookupOutputFile | sed -e "s/ /_/g")
-	
-	sudo nmblookup -B 192.168.1.255 $NetBiosName > "$nmbLookupOutputFile"
-	test=$(cat $nmbLookupOutputFile | grep "name_query failed")
-	
-	if [ ! "$test"X = X ]; then # error
-		LogFull "nmblookup : hôte $NetBiosName non trouvé" 
-		LogFull $test
-		return 1
-	fi
-	
-	# montage
-	sudo umount /media/$NetBiosName 2>/dev/null	
-	cifsMountError="$LOGDIR/cifs_"$NetBiosName"_"$CifsShare"_errors".log
-	cifsMountError=$(echo $cifsMountError | sed -e "s/ /_/g")
-	LogFull $NetBiosName
-	LogFull $CifsShare
-	LogFull $UserForMount
-	LogFull $PwdForMount
-	LogFull $cifsMountError
-	sudo mount -v -t cifs   //$NetBiosName/"$CifsShare" /media/$NetBiosName -o user=$UserForMount,pass=$PwdForMount,file_mode=0777,dir_mode=0777 1>$cifsMountError 2>&1
-	ls /media/$NetBiosName >/dev/null 2>&1
-	mountResult=$?
-	if [ $mountResult -eq 0 ]; then 
-		LogFull "OK ; IP="$pcIP
-	else
-		LogFull "Command mount has failed ; for details, just execute this command : #cat $cifsMountError"
-	fi
-	return $mountResult
-}
-
 #-----------------------------------------------------------------------------------------------------------------------#
 LogFull()
 {
 	arg1="$1"
-	echo [$(CurrentDateTime)][$SCRIPTNAME] "$arg1"
-	sudo echo [$(CurrentDateTime)][$SCRIPTNAME] "$arg1" >> $LOGFILE
+	echo [$(CurrentDateTime)][$scriptName] "$arg1"
+	sudo echo [$(CurrentDateTime)][$scriptName] "$arg1" >> $logfile
 }
 
-#-----------------------------------------------------------------------------------------------------------------------#
+#########################################################################################################################
+#                                              Functions definition 																	
+#########################################################################################################################
+ReMountNas()
+{
+	sudo umount /media/$NetBiosName 2>/dev/null	
+
+	PwdForMount=`cat /home/pi/scripts/MountLoginPassword.cfg | grep "$NetBiosName " | grep "$UserForMount " | awk '{print $3}' | /home/pi/xmsEncodeDecode -d`
+	LogFull "sudo mount -v -t cifs   //$NetBiosName/$CifsShare /media/$NetBiosName -o user=$UserForMount,pass=$PwdForMount,file_mode=0777,dir_mode=0777 2>&1"	
+	sudo mount -v -t cifs   //$NetBiosName/"$CifsShare" /media/$NetBiosName -o user=$UserForMount,pass=$PwdForMount,file_mode=0777,dir_mode=0777 2>&1
+	
+	ls /media/$NetBiosName >/dev/null 2>&1
+	mountResult=$(sudo mount | grep $NetBiosName | wc -l)
+	CheckValueIs $mountResult 1 "nas mount has failed"
+	return $mountResult
+}
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 MustRun()
 {
-	# for tests
-	#echo -n 0
-	#return
-
-	if [ ! -f $DAEMONPIDFILE ]; then
-		echo -n 0
-		return
+	res=$(ls $pidfile 2>/dev/null | wc -l)
+	if [ $res -eq 1 ]; then
+		psId=$(cat $pidfile)
+		if [ "x" == "x"$psId ]; then
+			psId=1
+		fi
+		res=$(ps -p $psId -f | grep $scriptName | wc -l)
 	fi
-	pidFilePid=$(cat $DAEMONPIDFILE)
-	if [ "$pidFilePid" !=  "$$" ]; then
-		echo -n 0
-		return
-	fi
-	echo -n 1
+	echo -n $res
 }
 
 #-----------------------------------------------------------------------------------------------------------------------#
@@ -125,7 +94,7 @@ ProcessRecordingCheckIteration()
 			#cvlc -q --sout "#transcode{acodec=mp4a,ab=128,channels=2,samplerate=44100}:std{accesle,mux=mp4,dst=$newVideoFile}" "http://192.168.1.84/cgi-bin/hi3510/snap.cgi?&-getstream" 1>/dev/null 2>&1 &
 			
 			LogFull ".   cvlc -q --sout #transcode{acodec=mp4a,ab=128,channels=2,samplerate=44100}:std{accesle,mux=mp4,dst=$newVideoFile} $camUrl"
-			cvlc --sout "#transcode{acodec=mp4a,ab=32,channels=2,samplerate=44100}:std{access=file,mux=mp4,dst=$newVideoFile}" $camUrl &>/$CAMERA_CONF_FILE"$camName"".log" &						
+			cvlc --sout "#transcode{acodec=mp4a,ab=32,channels=2,samplerate=44100}:std{access=file,mux=mp4,dst=$newVideoFile}" $camUrl &>/$sessionDir/"$camName"".log" &						
 			
 			vlcPid=$!
 			RegisterNewRecordProcessPid $vlcPid
@@ -142,37 +111,64 @@ RegisterNewRecordProcessPid()
 }
 
 #-----------------------------------------------------------------------------------------------------------------------#
-# Kill all vlc processes ; their pid have been backed up in $VLC_RECORD_PROCESSES file
-KillAllRegisteredProcessesPid()
+KillAllOldRegisteredProcesses()
 {
-	LogFull "Kill all vlc processes"
-	
-	while read row; do
-		killCommand="sudo kill -INT $row"
-		LogFull ".   $killCommand"
-		$killCommand 2>/dev/null
-	done < $VLC_RECORD_PROCESSES_OLD
-	
-	sudo rm -f $VLC_RECORD_PROCESSES_OLD
+	LogFull "Try to kill all old vlc processes"	
+	KillVlcProcessesWithPidInFile $VLC_RECORD_PROCESSES_OLD
+}
+
+#-----------------------------------------------------------------------------------------------------------------------#
+KillAllCurrentRegisteredProcesses()
+{
+	LogFull "Try to kill all current vlc processes"	
+	KillVlcProcessesWithPidInFile $VLC_RECORD_PROCESSES
 }
 
 
 #-----------------------------------------------------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------------------------------------------------#
-#                                                  START OF PROGRAM                                                     #
-#-----------------------------------------------------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------------------------------------------------#
-sudo mkdir $LOGDIR 1>/dev/null 2>&1
-sudo chmod 777 $LOGDIR 1>/dev/null 2>&1
+# Kill all vlc processes from pid of specified file
+KillVlcProcessesWithPidInFile()
+{
+	res=$(ls $1 | grep $1 | wc -l)
 
-LogFull "Start of daemon"
+	if [ $res -eq 1 ]; then
 
-sudo mkdir $RUNDIR 2>/dev/null
-sudo chmod 777 $RUNDIR 2>/dev/null
-sudo chmod 777 $DAEMONPIDFILE 2>/dev/null
-sudo echo -n $DAEMONPID > $DAEMONPIDFILE
+		while read row; do
+			isAVlcProcess=$(ps -p $row -f | grep vlc | wc -l)
+			if [ $isAVlcProcess -eq 1 ]; then
+				killCommand="sudo kill -INT $row"
+				LogFull ".   $killCommand"
+				$killCommand 2>/dev/null
+			else
+				LogFull ".   Process with id $row does not exist or is not a vlc process"
+			fi
+		done < $1			
 
-KillAllRegisteredProcessesPid
+	else
+		LogFull ".   $1 does not exist"
+	fi
+}
+
+#---------------------------------------------------------------------------------------#
+#--------------------------------------- PROGRAM START ---------------------------------#
+#---------------------------------------------------------------------------------------#
+
+#---------------------- create new session dir and root folders ------------------------#
+mkdir -p $sessionDir 2>/dev/null
+
+sudo rm -f $lastlogfile
+sudo ln -s $logfile $lastlogfile
+
+LogFull "-------------------------------------------------------"
+LogFull "Start of : script $scriptName $1"
+
+KillAllOldRegisteredProcesses
+KillAllCurrentRegisteredProcesses
+
+res=$(ls $pidfile 2>/dev/null | wc -l)
+if [ $res -eq 0 ]; then
+	sudo echo $$ > $pidfile	
+fi
 
 while [ $(MustRun) -eq 1 ]; do
 	
@@ -182,7 +178,7 @@ while [ $(MustRun) -eq 1 ]; do
 	if [ $? -ne 0 ]; then
 		LogFull "Share is not accessible : $NASSHARE"
 		shareIsAccessible=0
-		ReMount "dlink-2a629f" 		"Volume_1"			"xavier"
+		ReMountNas
 		sleep 3
 		ls $NASSHARE 1>/dev/null 2>&1		
 		if [ $? -eq 0 ]; then
@@ -194,14 +190,17 @@ while [ $(MustRun) -eq 1 ]; do
 	
 		# Find and remove file created for more than 7 days
 		find $NASSHARE/Cam/ -name "*.avi" -mtime +7 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done
-		find $LOGDIR 		-name "*.log" -mtime +7 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done
-		
+		find $sessionDir	-name "*.log" -mtime +7 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done
+				
 		LogFull "Process new file loop recording rotation iteration"	
-		
-		mv $VLC_RECORD_PROCESSES $VLC_RECORD_PROCESSES_OLD
+		# to make sure the file exists
+		touch $VLC_RECORD_PROCESSES
+
+		sudo mv $VLC_RECORD_PROCESSES $VLC_RECORD_PROCESSES_OLD
+
 		ProcessRecordingCheckIteration
 		sleep 1
-		KillAllRegisteredProcessesPid
+		KillAllOldRegisteredProcesses
 		
 		cpt=0
 		while [ $cpt -le 3600 ]; do
@@ -215,6 +214,8 @@ while [ $(MustRun) -eq 1 ]; do
 	fi
 done
 
-KillAllRegisteredProcessesPid
+KillAllOldRegisteredProcesses
+KillAllCurrentRegisteredProcesses
 
-LogFull "End of daemon"
+LogFull "End of : $scriptName $1"
+

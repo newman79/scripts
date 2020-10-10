@@ -17,9 +17,10 @@ import mysql.connector
 from xms.capteurs import TempHumUtils
 
 
-global verrou_log,progName, MainLoop
+global verrou_log,progName,progNameWithExtension, MainLoop
 
-progName = os.path.basename(__file__).split(".")[0]
+progNameWithExtension = os.path.basename(__file__)
+progName = progNameWithExtension.split(".")[0]
 MainLoop = True
 
 global StatDirPath
@@ -28,9 +29,10 @@ global firstLine
 global CurrentDay
 global daemonPidFile
 
-StatDirPath 	= '/var/run/TempHumGrabber'
+#progName		= 'TempHumGrabber.py'
+StatDirPath 	= '/home/pi/' + progNameWithExtension
 firstLine 		= True
-daemonPidFile 	= StatDirPath + '/xms_daemon_Grabber_TempHum.sh.pid'
+daemonPidFile 	= StatDirPath + '/' + progNameWithExtension + '.pid'
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 #										Classe Main
@@ -144,8 +146,10 @@ def main():
 		GetStats(D1,D2)
 		sys.exit(0)
 	
-	processId = os.getpid()
-	os.system('sudo echo ' + str(processId) + " 1>" + daemonPidFile)
+	result = os.system('ls ' + daemonPidFile + ' 1>/dev/null 2>&1')
+	if result == 0:
+		processId = os.getpid()
+		os.system('sudo echo ' + str(processId) + " 1>" + daemonPidFile)
 	
 	CreateOutputJsonFile()
 
@@ -228,6 +232,7 @@ def CreateOutputJsonFile():
 	CurrentDay = theNow.strftime('%Y%m%d')
 	globalFileName = StatDirPath + '/' +   '%f'%time.time() + '_' + CurrentDay + '.json'	
 	logFileHandle = open(globalFileName,'a')
+	#LogItem("")
 	logFileHandle.close()
 	
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#

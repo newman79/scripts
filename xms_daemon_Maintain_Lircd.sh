@@ -8,49 +8,43 @@
 # Short-Description: Démon qui maintient le daemon lircd (qui est plutot instable ... crash du plugin USB_IRTOY)
 # Description:       Démon qui maintient le daemon lircd (qui est plutot instable ... crash du plugin USB_IRTOY)
 ### END INIT INFO
-# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-# Pour créer un service, faire un lien symbolique : ln -s /etc/init.d/xms_daemon_<NomDeMonService>.sh /home/pi/scripts/xms_daemon_<NomDeMonService>.sh
-# Pour activer le service au boot
-#		sudo update-rc.d -f /etc/init.d/xms_daemon_<NomDeMonService>.sh defaults 5
-# 	OU
-# 		1) créer un service /etc/init.d/xms_lirc_maintain_svc.sh     et mettre un case in   start), un stop) et un status) dedans.
-# 		2) Le start se contentera de faire un startproc -f -p  $LE_PID_DU_DAEMON /home/pi/scripts/xms_daemon_lircd_maintain.sh
-# 		3) Le stop se contentera de supprimer le fichier $DAEMONPIDFILE. Et de vérifier qu'il n'y aie plus de process nommé /etc/init.d/xms_lirc_maintain_svc.sh (avec pidof par exemple)
-# 		4) Le status regardera si le fichier $DAEMONPIDFILE et si au moins un process nommé /etc/init.d/xms_lirc_maintain_svc.sh existe bien (avec pidof par exemple)
-#  		 Apres cela, on peut faire service xms_lirc_maintain_svc [start|stop|status]
-# 		5) Rajouter l'exécution du daemon au démarrage et l'arrêt à l'arrêt du système d'exploitation
-#  		ln -s /etc/init.d/xms_lirc_maintain_svc.sh /etc/rc.d/rc3.d/S43_lircd_maintain.sh
-# 			ln -s /etc/init.d/xms_lirc_maintain_svc.sh /etc/rc.d/rc3.d/K43_lircd_maintain.sh
-#-----------------------------------------------------------------------------------------------------------------------#
-CurrentDateTime()
-{
-	res=$(date +"%Y%m%d_%H%M%S")
-	echo $res
-}
 
-#-----------------------------------------------------------------------------------------------------------------------#
-CurrentDateTimeNano()
-{
-	res=$(date +"%Y%m%d_%H%M%S_%N")
-	echo $res
-}
+#---- Pour créer un service (service <serviceName> start | stop | status ) : ----#
+# sudo ln -s /home/pi/scripts/xms_daemon_Maintain_Lircd.sh /etc/init.d/xms_daemon_Maintain_Lircd.sh
+# chmod 777 /etc/init.d/xms_daemon_Maintain_Lircd.sh
+# chown pi:pi /etc/init.d/xms_daemon_Maintain_Lircd.sh
 
-scriptName=`basename "$0"`
-dirname=`dirname "$0"`
+#---- Pour mettre ce script au démrrage de rasbian : Nom commence par S pour le démarrage, K pour l'arret. ----#
+# sudo ln -s /etc/init.d/xms_daemon_Maintain_Lircd.sh /etc/rc4.d/S03xms_daemon_Maintain_Lircd.sh
+# sudo ln -s /etc/init.d/xms_daemon_Maintain_Lircd.sh /etc/rc5.d/S03xms_daemon_Maintain_Lircd.sh
+# sudo ln -s /etc/init.d/xms_daemon_Maintain_Lircd.sh /etc/rc5.d/K03xms_daemon_Maintain_Lircd.sh
+# etc ...
 
-#Variables globales de ce daemon
-DIR=/home/pi/scripts/shell/
-DAEMON=$DIR/MaintainLircd.sh
+# ou sudo update-rc.d xms_daemon_Maintain_Lircd.sh defaults 5 (5 est le 5eme à etre exécuté)
+# et sudo update-rc.d -f xms_daemon_Maintain_Lircd.sh remove
 
-RUNDIR=/var/run/MaintainLircd
-DAEMONPID=$$
-DAEMON_NAME=xms_daemon_Maintain_Lircd.sh
-DAEMONPIDFILE=$RUNDIR/$DAEMON_NAME.pid
-DAEMON_USER=pi
-
+#########################################################################################################################
+#                                                     Global variables
+#########################################################################################################################
+# colors
 red=`tput setaf 1`
 green=`tput setaf 2`
 reset=`tput sgr0`
+
+scriptName=`basename "$0"`
+
+#dirname=`dirname "$0"`
+# DIR=$dirname/shell/   ==> will set DIR to /etc/init.d etc ...
+
+DIR=/home/pi/scripts/shell
+DAEMONFILENAME=MaintainLircd.sh
+DAEMONFULLPATH=$DIR/$DAEMONFILENAME
+
+scriptSessionsDirRoot=/home/pi/$DAEMONFILENAME
+
+DAEMONPIDFILE=$scriptSessionsDirRoot/$DAEMONFILENAME.pid
+DAEMON_USER=pi
+DAEMON_OPTS=""
 
 #########################################################################################################################
 # 										Daemon Functions definition 													#
@@ -58,75 +52,70 @@ reset=`tput sgr0`
 . /lib/lsb/init-functions
 
 #-----------------------------------------------------------------------------------------------------------------------#
-do_start () {
-
-	sudo mkdir $RUNDIR 2>/dev/null
-	sudo chmod 777 $RUNDIR 2>/dev/null
-	
-	daemonNotRunning=1
-	ls $DAEMONPIDFILE >/dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		ps -p $(cat $DAEMONPIDFILE 2>/dev/null) 1>/dev/null 2>&1
-		daemonNotRunning=$?
+get_status() {
+	res=$(ls $DAEMONPIDFILE 2>/dev/null | wc -l)
+	if [ $res -eq 1 ]; then
+		psId=$(cat $DAEMONPIDFILE)
+		if [ "x" == "x"$psId ]; then
+			psId=1
+		fi
+		res=$(ps -p $psId -f | grep $DAEMONFILENAME | wc -l)
 	fi
-	if [ $daemonNotRunning -eq 0 ]; then
-		echo "${red}Daemon $DAEMON_NAME is already running ${reset}"
-		return
+	echo -n $res
+}
+
+#-----------------------------------------------------------------------------------------------------------------------#
+disp_status () {
+	echo -n "status : "
+	res=$(get_status)
+	if [ $res -eq 1 ]; then 
+		echo "${green}ON${reset}"
+	else
+		echo "${red}OFF${reset}"
+	fi
+}
+
+#-----------------------------------------------------------------------------------------------------------------------#
+do_start () {
+	sudo chmod 777 $DAEMONFULLPATH
+	sudo chown pi:pi $DAEMONFULLPATH
+	
+	res=$(get_status)
+	if [ $res -eq 1 ]; then
+		echo "${red}Daemon $scriptName is already running ${reset}"
+		exit 1
 	fi
     log_daemon_msg "Starting $DAEMON_NAME daemon"
-    start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMON -- $DAEMON_OPTS
+    start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMONFULLPATH -- $DAEMON_OPTS
     log_end_msg $?
 	sleep 1
 	disp_status
 }
 
-#-----------------------------------------------------------------------------------------------------------------------#
-do_stop () {
+#########################################################################################################################
+# 						                         SERVICE DEFINITION START
+#########################################################################################################################
 
-    log_daemon_msg "Stopping $DAEMON_NAME daemon"
-	sudo rm -f $DAEMONPIDFILE 	
-	sleep 3
-	disp_status	
-}
+mkdir $scriptSessionsDirRoot 2>/dev/null
+sudo chown pi:pi $scriptSessionsDirRoot
 
-#-----------------------------------------------------------------------------------------------------------------------#
-disp_status () {
-
-	daemonNotRunning=1
-	ls $DAEMONPIDFILE >/dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		ps -p $(cat $DAEMONPIDFILE 2>/dev/null) 1>/dev/null 2>&1
-		daemonNotRunning=$?
-	fi
-	
-	echo -n "Status of daemon $DAEMON_NAME : "
-	if [ $daemonNotRunning -eq 0 ]; then
-		echo "${green}[Running]${reset}"
-	else
-		echo "${red}[Stopped]${reset}"
-	fi
-}
-
-#-----------------------------------------------------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------------------------------------------------#
+#---------------------- daemon command handling --------------------------#
 case "$1" in
 
-    start|stop)
-        do_${1}
-        ;;
-    restart|reload|force-reload)
-        do_stop
-        do_start
+    start)
+		do_start
+		;;
+	stop)
+        log_daemon_msg "Stopping $scriptName daemon"
+		sudo rm -f $DAEMONPIDFILE 	
+		sleep 3
+		disp_status	
         ;;
     status)
 		disp_status			
         ;;
     *)
-        echo "Usage: /etc/init.d/$DAEMON_NAME {start|stop|restart|reload|force-reload|status}"
+        echo "Usage: /etc/init.d/$DAEMON_NAME {start|stop|status}"
         exit 1
         ;;
 esac
-exit 0
-
-
-

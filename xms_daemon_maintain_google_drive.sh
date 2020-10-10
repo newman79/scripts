@@ -1,28 +1,28 @@
 #!/bin/bash
 ### BEGIN INIT INFO 
-# Provides: 		 xms_daemon_Grabber_Cam
+# Provides: 		 xms_daemon_maintain_google_drive
 # Required-Start:   
 # Required-Stop:  
 # Default-Start: 	 2 3 4 5
-# Default-Stop: 	 0 6 
-# Short-Description: Maintien de l'enregistrement des cameras sur mon NAS
-# Description: 		 Maintien de l'enregistrement des cameras sur mon NAS
+# Default-Stop: 	 0 1 6 
+# Short-Description: Maintien de la connectivit√© avec mon espace google drive
+# Description: 		 Maintien de la connectivit√© avec mon espace google drive
 ### END INIT INFO
 
-#---- Pour crÈer un service (service <serviceName> start | stop | status ) : ----#
-# sudo ln -s /home/pi/scripts/xms_daemon_Grabber_Cam.sh /etc/init.d/xms_daemon_Grabber_Cam.sh
-# chmod 777 /etc/init.d/xms_daemon_Grabber_Cam.sh
-# chown pi:pi /etc/init.d/xms_daemon_Grabber_Cam.sh
+#---- Pour cr√©er un service (service <serviceName> start | stop | status ) : ----#
+# sudo ln -s /home/pi/scripts/xms_daemon_maintain_google_drive.sh /etc/init.d/xms_daemon_maintain_google_drive.sh
+# chmod 777 /etc/init.d/xms_daemon_maintain_google_drive.sh
+# chown pi:pi /etc/init.d/xms_daemon_maintain_google_drive.sh
 
-#---- Pour mettre ce script au dÈmrrage de rasbian : Nom commence par S pour le dÈmarrage, K pour l'arret. ----#
-# sudo ln -s /etc/init.d/xms_daemon_Grabber_Cam.sh /etc/rc4.d/S03xms_daemon_Grabber_Cam.sh
-# sudo ln -s /etc/init.d/xms_daemon_Grabber_Cam.sh /etc/rc5.d/S03xms_daemon_Grabber_Cam.sh
-# sudo ln -s /etc/init.d/xms_daemon_Grabber_Cam.sh /etc/rc5.d/xms_daemon_Grabber_Cam.sh
+#---- Pour mettre ce script au d√©mrrage de rasbian : Nom commence par S pour le d√©marrage, K pour l'arret. ----#
+# sudo ln -s /etc/init.d/xms_daemon_maintain_google_drive.sh /etc/rc4.d/S03xms_daemon_maintain_google_drive.sh
+# sudo ln -s /etc/init.d/xms_daemon_maintain_google_drive.sh /etc/rc5.d/S03xms_daemon_maintain_google_drive.sh
+# sudo ln -s /etc/init.d/xms_daemon_maintain_google_drive.sh /etc/rc5.d/K03xms_daemon_maintain_google_drive.sh
 # etc ...
 
-# ou sudo update-rc.d xms_daemon_Grabber_Cam.sh defaults 5 (5 est le 5eme ‡ etre exÈcutÈ)
-# et sudo update-rc.d -f xms_daemon_Grabber_Cam.sh remove
- 
+# ou sudo update-rc.d xms_daemon_maintain_google_drive.sh defaults 5 (5 est le 5eme √† etre ex√©cut√©)
+# et sudo update-rc.d -f xms_daemon_maintain_google_drive.sh remove
+
 #########################################################################################################################
 #                                                     Global variables
 #########################################################################################################################
@@ -37,7 +37,7 @@ scriptName=`basename "$0"`
 # DIR=$dirname/shell/   ==> will set DIR to /etc/init.d etc ...
 
 DIR=/home/pi/scripts/shell
-DAEMONFILENAME=CamGrabber.sh
+DAEMONFILENAME=MaintainGoogleDrive.sh
 DAEMONFULLPATH=$DIR/$DAEMONFILENAME
 
 scriptSessionsDirRoot=/home/pi/$DAEMONFILENAME
@@ -47,7 +47,7 @@ DAEMON_USER=pi
 DAEMON_OPTS=""
 
 #########################################################################################################################
-# 										Daemon Functions definition 													#
+#                                              Daemon Functions definition 																	
 #########################################################################################################################
 . /lib/lsb/init-functions
 
@@ -84,7 +84,6 @@ sudo chown pi:pi $scriptSessionsDirRoot
 
 #---------------------- daemon command handling --------------------------#
 case "$1" in
-
    'start')
 		sudo chmod 777 $DAEMONFULLPATH
 		sudo chown pi:pi $DAEMONFULLPATH
@@ -95,20 +94,31 @@ case "$1" in
 			exit 1
 		fi
 		log_daemon_msg "Starting $scriptName"
-	    sudo start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMONFULLPATH -- $DAEMON_OPTS
+		sudo start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER -g pi --startas $DAEMONFULLPATH -- $DAEMON_OPTS
 		log_end_msg $?
 		sleep 1
-        ;;
+    	;;
    'stop')
 		sudo rm -f $DAEMONPIDFILE
 		sleep 2
 		disp_status
-        ;;
-    'status')
-		disp_status			
-        ;;
-    *)
+    	;;
+   'status')
+		disp_status
+	    ;;
+   'setup')
+        sudo ln -s /home/pi/scripts/$scriptName /etc/init.d/$scriptName 2>/dev/null
+        sudo ln -s /etc/init.d/$scriptName /etc/rc2.d/S03$scriptName 2>/dev/null
+        sudo ln -s /etc/init.d/$scriptName /etc/rc3.d/S03$scriptName 2>/dev/null
+        sudo ln -s /etc/init.d/$scriptName /etc/rc4.d/S03$scriptName 2>/dev/null
+        sudo ln -s /etc/init.d/$scriptName /etc/rc5.d/S03$scriptName 2>/dev/null
+        sudo ln -s /etc/init.d/$scriptName /etc/rc0.d/K03$scriptName 2>/dev/null
+        sudo ln -s /etc/init.d/$scriptName /etc/rc1.d/K03$scriptName 2>/dev/null
+        sudo ln -s /etc/init.d/$scriptName /etc/rc6.d/K03$scriptName 2>/dev/null
+	    echo " Setup done : symbolic os startup handling has been created !"
+ 	   	;;
+   *)
         echo "Usage: /etc/init.d/$scriptName {start|stop|status}"
         exit 1
-        ;;
+	    ;;
 esac

@@ -5,37 +5,46 @@
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Démon RFSignals
-# Description:       Put a long description of the service here
+# Short-Description: Récupère les signaux 433Mghz
+# Description:       Récupère les signaux 433Mghz
 ### END INIT INFO
-# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-# Pour créer un service, faire un lien symbolique : ln -s /home/pi/scripts/xms_daemon_<NomDeMonService>.sh /etc/init.d/xms_daemon_<NomDeMonService>.sh
-# Pour activer le service au boot
-#		sudo update-rc.d -f /etc/init.d/xms_daemon_<NomDeMonService>.sh defaults 5
-# 	OU
-# 		1) créer un service /etc/init.d/xms_lirc_maintain_svc.sh     et mettre un case in   start), un stop) et un status) dedans.
-# 		2) Le start se contentera de faire un  /home/pi/scripts/xms_<program>.sh &
-# 		3) Le stop se contentera de supprimer le fichier $DAEMONPIDFILE. Et de vérifier qu'il n'y aie plus de process nommé /etc/init.d/xms_lirc_maintain_svc.sh (avec pidof par exemple)
-# 		4) Le status regardera si le fichier $DAEMONPIDFILE et si au moins un process nommé /etc/init.d/xms_lirc_maintain_svc.sh existe bien (avec pidof par exemple)
-#  		 Apres cela, on peut faire service xms_lirc_maintain_svc [start|stop|status]
-# 		5) Rajouter l'exécution du daemon au démarrage et l'arrêt à l'arrêt du système d'exploitation
-#  		ln -s /etc/init.d/xms_lirc_maintain_svc.sh /etc/rc.d/rc3.d/S43_lircd_maintain.sh
-# 			ln -s /etc/init.d/x
 
-#Variables globales de ce daemon
-DIR=/home/pi/scripts/python/
-DAEMON="/home/pi/src/RadioFrequence/RFReceptHandler"
-DAEMON_NAME=xms_daemon_Grabber_RFsignals.sh
+#---- Pour créer un service (service <serviceName> start | stop | status ) : ----#
+# sudo ln -s /home/pi/scripts/xms_daemon_Grabber_RFSignals.sh /etc/init.d/xms_daemon_Grabber_RFSignals.sh
+# chmod 777 /etc/init.d/xms_daemon_Grabber_RFSignals.sh
+# chown pi:pi /etc/init.d/xms_daemon_Grabber_RFSignals.sh
 
-RUNDIR=/var/run/RFSignalsGrabber
-DAEMONPID=$$
-#DAEMONPIDFILE=/home/pi/$DAEMON_NAME.pid
-DAEMONPIDFILE=$RUNDIR/$DAEMON_NAME.pid
+#---- Pour mettre ce script au démrrage de rasbian : Nom commence par S pour le démarrage, K pour l'arret. ----#
+# sudo ln -s /etc/init.d/xms_daemon_Grabber_RFSignals.sh /etc/rc4.d/S03xms_daemon_Grabber_RFSignals.sh
+# sudo ln -s /etc/init.d/xms_daemon_Grabber_RFSignals.sh /etc/rc5.d/S03xms_daemon_Grabber_RFSignals.sh
+# sudo ln -s /etc/init.d/xms_daemon_Grabber_RFSignals.sh /etc/rc5.d/xms_daemon_Grabber_RFSignals.sh
+# etc ...
+
+# ou sudo update-rc.d xms_daemon_Grabber_RFSignals.sh defaults 5 (5 est le 5eme à etre exécuté)
+# et sudo update-rc.d -f xms_daemon_Grabber_RFSignals.sh remove
+
+#########################################################################################################################
+#                                                     Global variables
+#########################################################################################################################
+# colors
+red=`tput setaf 1`
+green=`tput setaf 2`
+reset=`tput sgr0`
+
+scriptName=`basename "$0"`
+
+#dirname=`dirname "$0"`
+# DIR=$dirname/shell/   ==> will set DIR to /etc/init.d etc ...
+
+DIR=/home/pi/src/RadioFrequence
+DAEMONFILENAME=RFReceptHandler
+DAEMONFULLPATH=$DIR/$DAEMONFILENAME
+
+scriptSessionsDirRoot=/home/pi/$DAEMONFILENAME
+
+DAEMONPIDFILE=$scriptSessionsDirRoot/$DAEMONFILENAME.pid
 DAEMON_USER=pi
 DAEMON_OPTS="-conf=/home/pi/src/RadioFrequence/radioFrequenceSignalConfig.json -call=/var/www/rfirmanager/php/dump.sh"
-
-ARGS[0]="-conf=/home/pi/src/RadioFrequence/radioFrequenceSignalConfig.json"
-ARGS[1]="-call=/var/www/rfirmanager/php/dump.sh"
 
 red=`tput setaf 1`
 green=`tput setaf 2`
@@ -48,18 +57,17 @@ reset=`tput sgr0`
 
 #-----------------------------------------------------------------------------------------------------------------------#
 do_start () {
-
-	sudo mkdir -p $RUNDIR 2>/dev/null
-	sudo chmod 777 $RUNDIR 2>/dev/null
+	sudo chmod 777 $DAEMONFULLPATH
+	sudo chown pi:pi $DAEMONFULLPATH
 
 	start-stop-daemon --status --pid $DAEMONPIDFILE
-	thestate=$?
-	if [ $thestate -eq 0 ]; then
+	state=$?
+	if [ $state -eq 0 ]; then
 		echo "${green}[Already Running]${reset}"
 	else
-		log_daemon_msg "Starting $DAEMON_NAME daemon"
+		log_daemon_msg "Starting $scriptName"
 		sudo rm -f $DAEMONPIDFILE 1>/dev/null 2>&1
-		start-stop-daemon -v --start --background --pidfile $DAEMONPIDFILE --make-pidfile --name $DAEMON_NAME --user root --chuid root --exec $DAEMON -- -conf=/home/pi/src/RadioFrequence/radioFrequenceSignalConfig.json -call=/var/www/rfirmanager/php/dump.sh
+		sudo start-stop-daemon --start --background --pidfile $DAEMONPIDFILE --make-pidfile --user root --chuid root --exec $DAEMONFULLPATH -- -conf=/home/pi/src/RadioFrequence/radioFrequenceSignalConfig.json -call=/var/www/rfirmanager/php/dump.sh
 		
 		log_end_msg $?
 		sleep 1
@@ -70,8 +78,8 @@ do_start () {
 #-----------------------------------------------------------------------------------------------------------------------#
 do_stop () {
 
-    log_daemon_msg "Stopping $DAEMON_NAME daemon"	
-	start-stop-daemon --stop --exec $DAEMON	
+    log_daemon_msg "Stopping $scriptName"
+	sudo killall $DAEMONFILENAME
 	sudo rm -f $DAEMONPIDFILE 1>/dev/null 2>&1
 	sleep 1	
 	disp_status	
@@ -79,18 +87,28 @@ do_stop () {
 
 #-----------------------------------------------------------------------------------------------------------------------#
 disp_status () {
+	if [ -f $DAEMONPIDFILE ]; then
+		pid=$(cat $DAEMONPIDFILE)
+		start-stop-daemon --status --pid $pid
+		state=$?
+	else
+		state=1
+	fi
 
-	start-stop-daemon --status --pid $DAEMONPIDFILE
-	thestate=$?
-	if [ $thestate -eq 0 ]; then
+	if [ $state -eq 0 ]; then
 		echo "${green}[Running]${reset}"
 	else
 		echo "${red}[Stopped]${reset}"
 	fi
 }
 
-#-----------------------------------------------------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------------------------------------------------#
+#########################################################################################################################
+# 						                         SERVICE DEFINITION START
+#########################################################################################################################
+mkdir -p $scriptSessionsDirRoot 2>/dev/null
+sudo chmod 777 $scriptSessionsDirRoot
+sudo chown pi:pi $scriptSessionsDirRoot
+
 case "$1" in
 
     start|stop)
@@ -104,7 +122,7 @@ case "$1" in
 		disp_status			
         ;;
     *)
-        echo "Usage: /etc/init.d/$DAEMON_NAME {start|stop|restart|reload|force-reload|status}"
+        echo "Usage: /etc/init.d/$scriptName {start|stop|restart|reload|force-reload|status}"
         exit 1
         ;;
 esac
