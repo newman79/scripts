@@ -47,7 +47,6 @@ class TempHumGraber(Thread):
 		while self.myStop == False:
 			#-------------------- wait some time --------------------#
 			cpt = 0
-			#self.logFunction("countSleep : " + str(self.countSleep))
 			#self.logFunction("sleepInter : " + str(self.sleepInter))
 			while cpt < self.countSleep and self.myStop == False:
 				time.sleep(self.sleepInter)

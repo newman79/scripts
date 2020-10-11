@@ -147,7 +147,7 @@ def main():
 		sys.exit(0)
 	
 	result = os.system('ls ' + daemonPidFile + ' 1>/dev/null 2>&1')
-	if result == 0:
+	if result != 0:
 		processId = os.getpid()
 		os.system('sudo echo ' + str(processId) + " 1>" + daemonPidFile)
 	
@@ -159,7 +159,7 @@ def main():
 		thread_TempHumGraber.setGrabInterval(float(arguments['i']))
 	
 	thread_TempHumGraber.start()	
-		
+
 	try:
 		cpt=0
 		while MainLoop == True and Main.mustRun():

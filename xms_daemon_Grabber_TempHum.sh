@@ -41,12 +41,12 @@ DAEMONFILENAME=TempHumGrabber.py
 DAEMONFULLPATH=$DIR/$DAEMONFILENAME
 
 DAEMONCOMMAND='/usr/bin/python '$DAEMONFULLPATH
-DAEMONCOMMAND_ARGS='--i 10'
+DAEMONCOMMAND_ARGS='--i 2'
 
 scriptSessionsDirRoot=/home/pi/$DAEMONFILENAME
 
 DAEMONPIDFILE=$scriptSessionsDirRoot/$DAEMONFILENAME.pid
-DAEMON_USER=pi
+DAEMON_USER=root
 
 #########################################################################################################################
 # 										Daemon Functions definition 													#
