@@ -1,26 +1,59 @@
+#! /usr/bin/python
+# -*-coding:utf-8 -*
+
 import RPi.GPIO as GPIO
 import time
+from xms.capteurs import dth11_szazo
 
 def bin2dec(string_num):
     return str(int(string_num, 2))
-
-data = []
 
 # for GPIO numbering, 	choose BCM  GPIO.setmode(GPIO.BCM)  
 # for pin numbering, 	choose BOARD  GPIO.setmode(GPIO.BOARD) 
 GPIO.setmode(GPIO.BCM)
 
-GPIO.setup(4,GPIO.OUT)
-GPIO.output(4,GPIO.HIGH) 	# valeur haute (pull up)
+
+instance = dth11_szazo.DHT11(pin = 21)
+result = instance.read()
+print result.is_valid()
+if result.is_valid():
+	print result.temperature
+	print result.humidity
+
+result = instance.read()
+print result.is_valid()
+if result.is_valid():
+	print result.temperature
+	print result.humidity
+
+result = instance.read()
+print result.is_valid()
+if result.is_valid():
+	print result.temperature
+	print result.humidity
+
+exit(0)
+
+data = []
+
+pin=21
+
+GPIO.setup(pin,GPIO.OUT)
+GPIO.output(pin,GPIO.HIGH) 	# valeur haute (pull up)
 time.sleep(0.025)
-GPIO.output(4,GPIO.LOW) 	# valeur haute (pull down)
+GPIO.output(pin,GPIO.LOW) 	# valeur haute (pull down)
 time.sleep(0.02)
 
-GPIO.setup(4, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Mettre le GPIO en mode lecture, en le pullant préalable à UP
+GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Mettre le GPIO en mode lecture, en le pullant préalable à UP
+
+time.sleep(0.001)
 
 # Graber la reponse du DTH11
 for i in range(0,500):
-    data.append(GPIO.input(4))
+	data.append(GPIO.input(pin))
+
+print data
+
 
 bit_count 		= 0
 tmp 			= 0
@@ -31,9 +64,12 @@ crc 			= ""
 
 # La réponse du DTH11 est dans data
 try:
+	if data[count] == 0:
+		while data[count] == 0:
+			count = count + 1
+
 	# aller au premier element a 0 (entete de la reponse du DTH11)
 	while data[count] == 1:
-		tmp = 1
 		count = count + 1
 
 	for i in range(0, 32): # 32 valeurs (de 8 bits ?) a decoder 
@@ -44,7 +80,6 @@ try:
 		bit_count = 0
 
 		while data[count] == 0: # aller au premier element a 1
-			tmp = 1
 			count = count + 1
 
 		while data[count] == 1: # aller au premier element a 0; à partir d'ici, on compte le nombre de bit envoyé par le DTH11
@@ -63,7 +98,7 @@ try:
 				TemperatureBit = TemperatureBit  + "0"
 
 except:
-	print "ERR_RANGE"
+	print "ERR_RANGE WHEN ANALYZING DATA"
 	exit(0)
 
 # construction du crc
@@ -84,11 +119,13 @@ try:
 		else:
 			crc = crc + "0"
 except:
-	print "ERR_RANGE"
+	print "ERR_RANGE CRC"
+	Humidity 	= bin2dec(HumidityBit)
+	Temperature = bin2dec(TemperatureBit)
+	print Humidity
+	print Temperature
 	exit(0)
 
-Humidity 	= bin2dec(HumidityBit)
-Temperature = bin2dec(TemperatureBit)
 
 if int(Humidity) + int(Temperature) - int(bin2dec(crc)) == 0:
 	print Humidity

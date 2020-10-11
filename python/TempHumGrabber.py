@@ -153,7 +153,7 @@ def main():
 	
 	CreateOutputJsonFile()
 
-	thread_TempHumGraber = TempHumUtils.TempHumGraber(callbackTempHumTrace,21)
+	thread_TempHumGraber = TempHumUtils.TempHumGraber(callbackTempHumTrace, callbackLog,21)
 	
 	if arguments['i'] != None: 
 		thread_TempHumGraber.setGrabInterval(float(arguments['i']))
@@ -162,7 +162,7 @@ def main():
 		
 	try:
 		cpt=0
-		while MainLoop == True and Main.mustRun():			
+		while MainLoop == True and Main.mustRun():
 			time.sleep(1)
 			cpt=cpt+1
 			if cpt > 300:
@@ -172,7 +172,7 @@ def main():
 				os.system(cmd)
 	except KeyboardInterrupt:	
 		result = 0
-		
+
 	thread_TempHumGraber.stop()		
 	time.sleep(0.3)		
 	TerminateJsonFile()
@@ -187,6 +187,11 @@ def callbackTempHumTrace(temperature,humidity):
 	temperatureStr = str(round(temperature,2))
 	humidityStr = str(round(humidity,2))
 	registerEvent(temperatureStr, humidityStr)
+
+def callbackLog(message):
+	LogItem(message)
+	print message
+
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 									Appelee soit par le thread qui gere les arp, soit par le thread qui gere le tcpdump

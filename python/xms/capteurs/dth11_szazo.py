@@ -31,40 +31,41 @@ class DHT11:
         self.__pin = pin
 
     def read(self):
-        RPi.GPIO.setup(self.__pin, RPi.GPIO.OUT)
+
+		RPi.GPIO.setup(self.__pin, RPi.GPIO.OUT)
 
         # send initial high
-        self.__send_and_sleep(RPi.GPIO.HIGH, 0.05)
+		self.__send_and_sleep(RPi.GPIO.HIGH, 0.05)
 
         # pull down to low
-        self.__send_and_sleep(RPi.GPIO.LOW, 0.02)
+		self.__send_and_sleep(RPi.GPIO.LOW, 0.02)
 
         # change to input using pull up
-        RPi.GPIO.setup(self.__pin, RPi.GPIO.IN, RPi.GPIO.PUD_UP)
+		RPi.GPIO.setup(self.__pin, RPi.GPIO.IN, RPi.GPIO.PUD_UP)
 
         # collect data into an array
-        data = self.__collect_input()
+		data = self.__collect_input()
 
         # parse lengths of all data pull up periods
-        pull_up_lengths = self.__parse_data_pull_up_lengths(data)
+		pull_up_lengths = self.__parse_data_pull_up_lengths(data)
 
         # if bit count mismatch, return error (4 byte data + 1 byte checksum)
-        if len(pull_up_lengths) != 40:
-            return DHT11Result(DHT11Result.ERR_MISSING_DATA, 0, 0)
+		if len(pull_up_lengths) != 40:
+			return DHT11Result(DHT11Result.ERR_MISSING_DATA, 0, 0)
 
         # calculate bits from lengths of the pull up periods
-        bits = self.__calculate_bits(pull_up_lengths)
+		bits = self.__calculate_bits(pull_up_lengths)
 
         # we have the bits, calculate bytes
-        the_bytes = self.__bits_to_bytes(bits)
+		the_bytes = self.__bits_to_bytes(bits)
 
         # calculate checksum and check
-        checksum = self.__calculate_checksum(the_bytes)
-        if the_bytes[4] != checksum:
-            return DHT11Result(DHT11Result.ERR_CRC, 0, 0)
+		checksum = self.__calculate_checksum(the_bytes)
+		if the_bytes[4] != checksum:
+			return DHT11Result(DHT11Result.ERR_CRC, 0, 0)
 
         # ok, we have valid data, return it
-        return DHT11Result(DHT11Result.ERR_NO_ERROR, the_bytes[2], the_bytes[0])
+		return DHT11Result(DHT11Result.ERR_NO_ERROR, the_bytes[2], the_bytes[0])
 
     def __send_and_sleep(self, output, sleep):
         RPi.GPIO.output(self.__pin, output)
