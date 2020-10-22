@@ -41,7 +41,11 @@ DAEMONFILENAME=TempHumGrabber.py
 DAEMONFULLPATH=$DIR/$DAEMONFILENAME
 
 DAEMONCOMMAND='/usr/bin/python '$DAEMONFULLPATH
-DAEMONCOMMAND_ARGS='--i 2'
+if [ -f $DIR/"WirePusherNotificationTokens.conf" ]; then
+	DAEMONCOMMAND_ARGS="--i 300 --wirepushertokens="$(cat $DIR/WirePusherNotificationTokens.conf)
+else 
+	DAEMONCOMMAND_ARGS="--i 300"
+fi
 
 scriptSessionsDirRoot=/home/pi/$DAEMONFILENAME
 

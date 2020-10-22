@@ -52,6 +52,7 @@ class TempHumGraber(Thread):
 				time.sleep(self.sleepInter)
 				cpt += 1
 
+			#self.logFunction("now get a new value")
 			cptTest = 0
 			while cptTest < 50 and self.myStop == False:
 				cptTest = cptTest + 1
@@ -61,3 +62,6 @@ class TempHumGraber(Thread):
 					cptTest = 50
 				else:
 					time.sleep(0.1)
+			#if self.myStop:
+			#	self.logFunction("now terminate thread : stopped")
+

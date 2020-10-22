@@ -4,6 +4,7 @@
 import random, time, pygame, sys, copy
 import urllib2
 import os
+from os import path
 from sets import Set
 import glob
 import re
@@ -13,6 +14,7 @@ import subprocess
 import argparse
 import datetime
 import mysql.connector
+from urllib import quote_plus
 
 from xms.capteurs import TempHumUtils
 
@@ -120,16 +122,25 @@ def main():
 	global MainLoop
 	global D1
 	global D2
+	global WirePusherTokens
+	global WirePusherTokensArray
 	
 	parser = argparse.ArgumentParser(description='Example with simples options')
-	parser.add_argument('-i' 		, '--i'	,			action="store"		, 	help="Grab interval, in seconds")
-	parser.add_argument('-start' 	, '--start',		action="store_true"	,  	help="Start program")
-	parser.add_argument('-stop' 	, '--stop',			action="store_true"	,  	help="Stop program")
-	parser.add_argument('-get' 		, '--get',			action="count"	,  	help="Get from acquired files, must be set with 'd1' and 'd2' options")
-	parser.add_argument('-d1' 		, '--d1',			action="store"		,  	help="Start date for get option")
-	parser.add_argument('-d2' 		, '--d2',			action="store"		,  	help="End date for get option")
+	parser.add_argument('-i' 				, '--i'	,				action="store"		, 	help="Grab interval, in seconds")
+	parser.add_argument('-start' 			, '--start',			action="store_true"	,  	help="Start program")
+	parser.add_argument('-stop' 			, '--stop',				action="store_true"	,  	help="Stop program")
+	parser.add_argument('-get' 				, '--get',				action="count"		,  	help="Get from acquired files, must be set with 'd1' and 'd2' options")
+	parser.add_argument('-d1' 				, '--d1',				action="store"		,  	help="Start date for get option")
+	parser.add_argument('-d2' 				, '--d2',				action="store"		,  	help="End date for get option")
+	parser.add_argument('-wirepushertokens' , '--wirepushertokens',	action="store"		,  	help="list of wirepusher notification tokens")
+	
 	result = parser.parse_args()
 	arguments = dict(result._get_kwargs())
+
+	WirePusherTokensArray = []
+	if arguments['wirepushertokens'] != None:
+		WirePusherTokens = arguments['wirepushertokens']
+		WirePusherTokensArray = WirePusherTokens.split(',')
 
 	if arguments['get'] != None:
 		if arguments['d1'] != None:
@@ -187,6 +198,33 @@ def callbackTempHumTrace(temperature,humidity):
 	temperatureStr = str(round(temperature,2))
 	humidityStr = str(round(humidity,2))
 	registerEvent(temperatureStr, humidityStr)
+
+	msg = quote_plus(temperatureStr + " °C, " + humidityStr + " %")
+	os.system("/home/pi/scripts/python/notify-wire-pusherclient.py -s xmsIndoorTempHum -w " + WirePusherTokens + " -t " + msg + " -m " + msg)
+
+		#msg 		= "warning : " + " temp:" + temperatureStr + ",hum:" + humidityStr
+		#msgTitle	= "home temp./hum."
+		#msgType 	= "xmsTempHum"
+		#for token in WirePusherTokensArray:
+		#	# get notification file path
+		#	lastTokenNotificationTouchFilePath = StatDirPath + "/last.notification.xmsTempHum.for." + token
+
+		#	mustNotifyToken = False
+
+		#	if not path.exists(lastTokenNotificationTouchFilePath):
+		#		mustNotifyToken = True
+		#	else:
+		#		# get last modification in seconds
+		#		lastModifiedTokenFileTimeInSecondsSinceEpoch = os.path.getmtime(lastTokenNotificationTouchFilePath)
+		#		currentTimeInSecondsSinceEpoch 				 = time.time()
+		#		lastModifiedTokenFileSinceInSeconds 		 = currentTimeInSecondsSinceEpoch - lastModifiedTokenFileTimeInSecondsSinceEpoch
+		#		mustNotifyToken = lastModifiedTokenFileSinceInSeconds > 14400
+
+		#	# if last modified is very far, send notif and touch it
+		#	if mustNotifyToken:
+		#		curlCommand = "curl -k 'https://wirepusher.com/send?id=" + token + "&title=" + msgTitle + "&message=" + msg + "&type=" + msgType + "' 2>&1 1>/dev/null"
+		#		os.system(curlCommand)
+		#		os.system("touch " + lastTokenNotificationTouchFilePath + " 2>/dev/null")
 
 def callbackLog(message):
 	LogItem(message)
