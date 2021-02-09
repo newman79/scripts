@@ -14,27 +14,32 @@ import subprocess
 import argparse
 import datetime
 import mysql.connector
+import thread
+
 from urllib import quote_plus
 
 from xms.capteurs import TempHumUtils
 
 
-global verrou_log,progName,progNameWithExtension, MainLoop
-
-progNameWithExtension = os.path.basename(__file__)
-progName = progNameWithExtension.split(".")[0]
-MainLoop = True
-
-global StatDirPath
+global progName,progNameWithExtension, MainLoop
+global SessionsPath
 global globalFileName
 global firstLine
 global CurrentDay
 global daemonPidFile
+global logFilePath
 
+progNameWithExtension = os.path.basename(__file__)
+progName = progNameWithExtension.split(".")[0]
 #progName		= 'TempHumGrabber.py'
-StatDirPath 	= '/home/pi/' + progNameWithExtension
+MainLoop = True
+
+verrou_log	  		= RLock()
+
+SessionsPath 	= '/home/pi/' + progNameWithExtension
 firstLine 		= True
-daemonPidFile 	= StatDirPath + '/' + progNameWithExtension + '.pid'
+daemonPidFile 	= SessionsPath + '/' + progNameWithExtension + '.pid'
+logFilePath 	= SessionsPath + "/" + datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S.%f') + '.' + progName + ".log"
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 #										Classe Main
@@ -59,8 +64,8 @@ def GetMeasures(start, end):
 
 	# Trouver les fichiers dont le prefix est apres <start> - 1jour et avant <end> + 1 jour
 	# Pure shell command is  :   ls /var/run/StatGrabber/*.json | xargs -n 1 basename | while read filepath; do { prefix=`echo $filepath | sed -e "s/\.[0-9]*_[0-9]*\.json//g"` ; [ $prefix -ge 1423290000 ] && [ $prefix -le 1503220000 ] &&  cat /var/run/StatGrabber/$filepath  ; }  done
-	#cmd = 'ls ' + StatDirPath + '/*.json | xargs -n 1 basename | while read filepath; do { prefix=`echo $filepath | sed -e "s/\.[0-9]*_[0-9]*\.json//g"` ; [ $prefix -ge ' + str(limitAfter) + ' ] && [ $prefix -le ' + str(limitBefore) + ' ] &&  echo ' + StatDirPath + '/$filepath  ; }  done'
-	cmd = 'ls ' + StatDirPath + '/*.json | sort'
+	#cmd = 'ls ' + SessionsPath + '/*.json | xargs -n 1 basename | while read filepath; do { prefix=`echo $filepath | sed -e "s/\.[0-9]*_[0-9]*\.json//g"` ; [ $prefix -ge ' + str(limitAfter) + ' ] && [ $prefix -le ' + str(limitBefore) + ' ] &&  echo ' + SessionsPath + '/$filepath  ; }  done'
+	cmd = 'ls ' + SessionsPath + '/*.json | sort'
 	
 	# Filtrer les traces
 	# Pure shell command is : cat /var/run/StatGrabber/1463322803.882795_20160515.json | while read statline; do { prefix=`echo $statline | sed -e "s/\,*\([0-9]*\)\.[0-9].*/\1/g"` ;  [ $prefix -ge 1463322825 ] && [ $prefix -le 1463322844 ]  &&  echo $statline  ; } done																											
@@ -118,13 +123,19 @@ def GetMeasures(start, end):
 # 																				MAIN  																				
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 def main():	
-	
+		
 	global MainLoop
 	global D1
 	global D2
 	global WirePusherTokens
 	global WirePusherTokensArray
 	
+	LogMsg('Start of ' + progName)
+	
+	LogMsg('Create json file if new day')	
+	CreateOutputJsonFile()
+
+	LogMsg('Parse command line args')
 	parser = argparse.ArgumentParser(description='Example with simples options')
 	parser.add_argument('-i' 				, '--i'	,				action="store"		, 	help="Grab interval, in seconds")
 	parser.add_argument('-start' 			, '--start',			action="store_true"	,  	help="Start program")
@@ -157,20 +168,21 @@ def main():
 		GetStats(D1,D2)
 		sys.exit(0)
 	
+	LogMsg('If needed, put process pid  in ' + daemonPidFile)
 	result = os.system('ls ' + daemonPidFile + ' 1>/dev/null 2>&1')
 	if result != 0:
 		processId = os.getpid()
 		os.system('sudo echo ' + str(processId) + " 1>" + daemonPidFile)
 	
-	CreateOutputJsonFile()
-
 	thread_TempHumGraber = TempHumUtils.TempHumGraber(callbackTempHumTrace, callbackLog,21)
 	
 	if arguments['i'] != None: 
 		thread_TempHumGraber.setGrabInterval(float(arguments['i']))
 	
+	LogMsg('Start graber thread')
 	thread_TempHumGraber.start()	
 
+	LogMsg('Start main loop')
 	try:
 		cpt=0
 		while MainLoop == True and Main.mustRun():
@@ -179,13 +191,15 @@ def main():
 			if cpt > 300:
 				cpt=0
 				# retention des fichiers de trace
-				cmd = 'find ' + StatDirPath + ' -name "*json" -mtime 365 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done			'
+				cmd = 'find ' + SessionsPath + ' -name "*json" -mtime 365 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done			'
 				os.system(cmd)
 	except KeyboardInterrupt:	
 		result = 0
 
+	LogMsg('Stop graber thread')
 	thread_TempHumGraber.stop()		
 	time.sleep(0.3)		
+	LogMsg('Close json file')
 	TerminateJsonFile()
 	sys.exit(0)
 	
@@ -207,7 +221,7 @@ def callbackTempHumTrace(temperature,humidity):
 		#msgType 	= "xmsTempHum"
 		#for token in WirePusherTokensArray:
 		#	# get notification file path
-		#	lastTokenNotificationTouchFilePath = StatDirPath + "/last.notification.xmsTempHum.for." + token
+		#	lastTokenNotificationTouchFilePath = SessionsPath + "/last.notification.xmsTempHum.for." + token
 
 		#	mustNotifyToken = False
 
@@ -237,32 +251,41 @@ def callbackLog(message):
 def registerEvent(temperatureStr, humidityStr):
 	msg = ' temp:' + temperatureStr + ", hum:" + humidityStr
 	message = '%f' % time.time() +  ":" + msg 	
-	print  message
-	LogItem(message)
+	LogMsg('register : ' + message)
 	
 	theNow 	= datetime.datetime.utcnow()
 	measureDateStr = theNow.strftime('%Y-%m-%d %H:%M:%S')
 
-	#-------- Debut connection a la base de donnee --------#
-	cnx = mysql.connector.connect(user='xavier', database='Evenements', password='free1979')
-	cursor = cnx.cursor()
-	#-------- recuperer le device id pour lequel enregistrer l evenement --------#
-	cursor.execute("select id from TR_DeviceName where nomDNS='xms-rbpi'")
-	result = cursor.fetchone()
-	deviceId = result[0]
-	#deviceIdStr = str(deviceId)
-	
-	#-------- enregistrer l evenement --------#
-	request_insert_measure_event = ("INSERT INTO EventLanDevice(id,date,state,ip,measure1,measure2) VALUES(%s,%s,%s,%s,%s,%s)")
-	data_measure_event = (deviceId, measureDateStr, 6, "192.168.1.253", temperatureStr,humidityStr)
-	# Insert 
-	cursor.execute(request_insert_measure_event, data_measure_event)
-	#insertedEventRowId = cursor.lastrowid
+	try:
+		#-------- Debut connection a la base de donnee --------#
+		cnx = mysql.connector.connect(user='xavier', database='Evenements', password='free1979')
+		cursor = cnx.cursor()
+		#-------- recuperer le device id pour lequel enregistrer l evenement --------#
+		cursor.execute("select id from TR_DeviceName where nomDNS='xms-rbpi'")
+		result = cursor.fetchone()
+		deviceId = result[0]
+		
+		#-------- enregistrer l evenement --------#
+		message = '' + str(deviceId) + ' m=' + measureDateStr + ' s=' + str(6) + ' t=' + temperatureStr + ' h=' + humidityStr
+		print  message
+		LogItem(message)
+		request_insert_measure_event = ("INSERT INTO EventLanDevice(id,date,state,ip,measure1,measure2) VALUES(%s,%s,%s,%s,%s,%s)")
+		data_measure_event = (deviceId, measureDateStr, 6, "192.168.1.253", temperatureStr,humidityStr)
+		# Insert 
+		cursor.execute(request_insert_measure_event, data_measure_event)
+		#insertedEventRowId = cursor.lastrowid
 
-	#-------- Commit et fin de connection a la base de donnee --------#
-	cnx.commit()
-	cursor.close()
-	cnx.close()	
+		#-------- Commit et fin de connection a la base de donnee --------#
+		cnx.commit()
+	except:
+		LogMsg('could not insert following event in database : ' + message)
+	finally:
+		try:
+			cursor.close()
+			cnx.close()
+		finally:
+			LogMsg('could not close connection')
+			
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 									
@@ -273,7 +296,7 @@ def CreateOutputJsonFile():
 	
 	theNow 	= datetime.datetime.utcnow()
 	CurrentDay = theNow.strftime('%Y%m%d')
-	globalFileName = StatDirPath + '/' +   '%f'%time.time() + '_' + CurrentDay + '.json'	
+	globalFileName = SessionsPath + '/' +   '%f'%time.time() + '_' + CurrentDay + '.json'	
 	logFileHandle = open(globalFileName,'a')
 	#LogItem("")
 	logFileHandle.close()
@@ -282,6 +305,8 @@ def CreateOutputJsonFile():
 # 									Appelee soit par le thread qui gere les arp, soit par le thread qui gere le tcpdump
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 def LogItem(msg):
+	
+	LogMsg(msg)
 	
 	theNow 	= datetime.datetime.utcnow()
 	actualDay = theNow.strftime('%Y%m%d')
@@ -292,6 +317,19 @@ def LogItem(msg):
 	logFileHandle = open(globalFileName,'a')
 	logFileHandle.write(msg + '\n')
 	logFileHandle.close()
+
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+# 									Appelee soit par le thread qui gere les arp, soit par le thread qui gere le tcpdump
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+def LogMsg(msg):
+	theNow 	= datetime.datetime.utcnow()
+	with verrou_log:
+		message = '[' + theNow.strftime('%Y%m%d_%H%M%S.%f') + '][' + progName + '][' + str(thread.get_ident()) + '] ' + msg 
+		logFileHandle = open(logFilePath,'a')
+		logFileHandle.write(message + '\n')
+		logFileHandle.close()
+		print  message
+
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 									

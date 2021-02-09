@@ -1,3 +1,8 @@
 *.log
 **/MountLoginPassword.cfg
 **/*.vlc.pids
+**/node_modules/**/**
+/node_modules
+**/credentials.**.json
+**/cert.pem
+**/key.pem

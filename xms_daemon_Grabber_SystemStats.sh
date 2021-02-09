@@ -5,22 +5,22 @@
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Enregistre/historise l'état du systeme
-# Description:       Enregistre/historise l'état du systeme
+# Short-Description: Enregistre/historise l'Ã©tat du systeme
+# Description:       Enregistre/historise l'Ã©tat du systeme
 ### END INIT INFO
 
-#---- Pour créer un service (service <serviceName> start | stop | status ) : ----#
+#---- Pour crÃ©er un service (service <serviceName> start | stop | status ) : ----#
 # sudo ln -s /home/pi/scripts/xms_daemon_Grabber_SystemStat.sh /etc/init.d/xms_daemon_Grabber_SystemStat.sh
 # chmod 777 /etc/init.d/xms_daemon_Grabber_SystemStat.sh
 # chown pi:pi /etc/init.d/xms_daemon_Grabber_SystemStat.sh
 
-#---- Pour mettre ce script au démrrage de rasbian : Nom commence par S pour le démarrage, K pour l'arret. ----#
+#---- Pour mettre ce script au dÃ©mrrage de rasbian : Nom commence par S pour le dÃ©marrage, K pour l'arret. ----#
 # sudo ln -s /etc/init.d/xms_daemon_Grabber_SystemStat.sh /etc/rc4.d/S03xms_daemon_Grabber_SystemStat.sh
 # sudo ln -s /etc/init.d/xms_daemon_Grabber_SystemStat.sh /etc/rc5.d/S03xms_daemon_Grabber_SystemStat.sh
 # sudo ln -s /etc/init.d/xms_daemon_Grabber_SystemStat.sh /etc/rc5.d/K03xms_daemon_Grabber_SystemStat.sh
 # etc ...
 
-# ou sudo update-rc.d xms_daemon_Grabber_SystemStat.sh defaults 5 (5 est le 5eme à etre exécuté)
+# ou sudo update-rc.d xms_daemon_Grabber_SystemStat.sh defaults 5 (5 est le 5eme Ã  etre exÃ©cutÃ©)
 # et sudo update-rc.d -f xms_daemon_Grabber_SystemStat.sh remove
  
 #########################################################################################################################

@@ -5,22 +5,22 @@
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Démon systemstat
+# Short-Description: DÃ©mon systemstat
 # Description:       Put a long description of the service here
 ### END INIT INFO
 
-#---- Pour créer un service (service <serviceName> start | stop | status ) : ----#
+#---- Pour crÃ©er un service (service <serviceName> start | stop | status ) : ----#
 # sudo ln -s /home/pi/scripts/xms_daemon_Grabber_TempHum.sh /etc/init.d/xms_daemon_Grabber_TempHum.sh
 # chmod 777 /etc/init.d/xms_daemon_Grabber_TempHum.sh
 # chown pi:pi /etc/init.d/xms_daemon_Grabber_TempHum.sh
 
-#---- Pour mettre ce script au démrrage de rasbian : Nom commence par S pour le démarrage, K pour l'arret. ----#
+#---- Pour mettre ce script au dÃ©mrrage de rasbian : Nom commence par S pour le dÃ©marrage, K pour l'arret. ----#
 # sudo ln -s /etc/init.d/xms_daemon_Grabber_TempHum.sh /etc/rc4.d/xms_daemon_Grabber_TempHum.sh
 # sudo ln -s /etc/init.d/xms_daemon_Grabber_TempHum.sh /etc/rc5.d/xms_daemon_Grabber_TempHum.sh
 # sudo ln -s /etc/init.d/xms_daemon_Grabber_TempHum.sh /etc/rc5.d/xms_daemon_Grabber_TempHum.sh
 # etc ...
 
-# ou sudo update-rc.d xms_daemon_Grabber_TempHum.sh defaults 5 (5 est le 5eme à etre exécuté)
+# ou sudo update-rc.d xms_daemon_Grabber_TempHum.sh defaults 5 (5 est le 5eme Ã  etre exÃ©cutÃ©)
 # et sudo update-rc.d -f xms_daemon_Grabber_TempHum.sh remove
 
 #########################################################################################################################
@@ -49,7 +49,7 @@ fi
 
 scriptSessionsDirRoot=/home/pi/$DAEMONFILENAME
 
-DAEMONPIDFILE=$scriptSessionsDirRoot/$DAEMONFILENAME.pid
+DAEMONPIDFILE=$scriptSessionsDirRoot/$DAEMONFILENAME".pid"
 DAEMON_USER=root
 
 #########################################################################################################################
@@ -113,7 +113,9 @@ case "$1" in
 
 		log_daemon_msg "Starting $scriptName"
 		sudo start-stop-daemon --start --background  --pidfile $DAEMONPIDFILE --make-pidfile     --user $DAEMON_USER --chuid $DAEMON_USER --exec $DAEMONCOMMAND -- $DAEMONCOMMAND_ARGS
-		log_end_msg $?
+		
+		log_daemon_msg "Is $scriptName started :  " $?
+		echo ""
 		sleep 1
 		sudo chmod 777 $DAEMONPIDFILE
 		sleep 1

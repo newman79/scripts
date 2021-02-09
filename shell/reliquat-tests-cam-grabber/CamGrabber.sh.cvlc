@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# WORKS ON MY RBPI 3, with Linux raspberrypi 5.4.51-v7+ ( armv7l )   ,   WITH FFMPEG 4.1.6-1~deb10u1+rpt1      and      VLC media player 3.0.11 Vetinari (revision 3.0.11-0-gdc0c5ced72)
-
 horodate=$(date +"%Y%m%d_%H%M%S")
 curmonth=`date +%m`
 curday=`date +%d`
@@ -10,6 +8,7 @@ curyear=`date +%Y`
 scriptName=`basename "$0"`
 scriptDirPath=`dirname "$0"`
 scriptSessionsDirRoot=/home/pi/$scriptName
+#sessionDir=$scriptSessionsDirRoot/$horodate
 sessionDir=$scriptSessionsDirRoot
 logfile="$sessionDir/$scriptName_$horodate.log"
 pidfile=$scriptSessionsDirRoot/$scriptName.pid
@@ -22,9 +21,6 @@ NASSHARE=/media/$NetBiosName/Partages
 CAMERA_CONF_FILE="$scriptDirPath/$scriptName.conf"
 VLC_RECORD_PROCESSES="$sessionDir/$scriptName.vlc.pids"
 VLC_RECORD_PROCESSES_OLD="$sessionDir/$scriptName.vlc.old.pids"
-
-WAITDURATION=600
-WAITDURATIONFORRECORD=$(( WAITDURATION + 63 ))
 
 #########################################################################################################################
 #                                                Logs Functions definition
@@ -84,46 +80,46 @@ MustRun()
 #-----------------------------------------------------------------------------------------------------------------------#
 ProcessRecordingCheckIteration()
 {
+	LogFull "Wait for all vlc processes to end"	
+	allVlcProcessesAreEnded=$(ps -p `cat $VLC_RECORD_PROCESSES` | grep -v PID | grep -v STAT | wc -l)
+	while [ $allVlcProcessesAreEnded -ne 0 ]; do
+		sleep 1
+		allVlcProcessesAreEnded=$(ps -p `cat $VLC_RECORD_PROCESSES` | grep -v PID | grep -v STAT | wc -l)
+	done
+	
+	LogFull "Move all avi files to NAS"
+	for aviFile in $scriptSessionsDirRoot/*.avi; do
+		if [ -f $aviFile ]; then
+			LogFull "  Moving $aviFile"
+			sudo mv $aviFile $NASSHARE/Cam/
+		fi
+	done	
+		
 	LogFull "Start new vlc capture for each cam"
+	rm $VLC_RECORD_PROCESSES
+	touch $VLC_RECORD_PROCESSES
 	
 	while read row; do
-		#camRow=`echo $row | sed -e "s/ //g" | grep "^[^#;]"`
-		camRow=`echo $row | grep "^[^#;]"`
-		
+		camRow=`echo $row | sed -e "s/ //g" | grep "^[^#;]"`
 		if [ "X$camRow" != "X" ]; then
 			camName=`echo $camRow | cut -d~ -f1`
 			camUrl=`echo $camRow | cut -d~ -f2`  
-			camOptions=`echo $camRow | cut -d~ -f3`
-			
-			LogFull "Process : $camName, $camOptions : "
-			
-			recordingLogFile="/$sessionDir/"$camName".log"
+			LogFull "Process cam : $camName, url : $camUrl"
 			
 			newVideoFile=$scriptSessionsDirRoot/$(CurrentDateTimeNano)_Grab-$camName.avi
 			
-			# just a little pb remains : ffmped does not generate logs : we may be have to use 
-			#    FFREPORT="level=32:file=/home/pi/CamGrabber.sh/ffmpeg-c2.log"
-			#    or some options such as -v verbose, or maybe nostdin
-			if [ "$camOptions" = "method1"  ]; then
-				camCommand="ffmpeg -t $WAITDURATIONFORRECORD -i $camUrl -vcodec copy $newVideoFile"
-				LogFull ".   $camCommand"
-				( ffmpeg -t $WAITDURATIONFORRECORD -i $camUrl -vcodec copy $newVideoFile ; sudo cp $newVideoFile $NASSHARE/Cam/ 2>&1 >$recordingLogFile ; sudo rm -f $newVideoFile ) &
-			elif [ "$camOptions" = "method2"  ]; then
-				camCommand="timeout $WAITDURATIONFORRECORD"s" ffmpeg -use_wallclock_as_timestamps 1 -i $camUrl -vcodec copy $newVideoFile"
-				LogFull ".   $camCommand"
-				( timeout $WAITDURATIONFORRECORD"s" ffmpeg -use_wallclock_as_timestamps 1 -i $camUrl -vcodec copy $newVideoFile 2>&1 >$recordingLogFile ; sudo cp $newVideoFile $NASSHARE/Cam/ ; sudo rm -f $newVideoFile ) &				
-			elif [ "$camOptions" = "method3"  ]; then
-				camCommand="timeout $WAITDURATIONFORRECORD"s" cvlc --sout \"#transcode{acodec=mp4a,ab=32,channels=2,samplerate=44100}:std{access=file,mux=mp4,dst=$newVideoFile}\" $camUrl"
-				LogFull ".   $camCommand"
-				( timeout $WAITDURATIONFORRECORD"s" cvlc --sout "#transcode{acodec=mp4a,ab=32,channels=2,samplerate=44100}:std{access=file,mux=mp4,dst=$newVideoFile}" $camUrl 2>&1 >/$sessionDir/vlc"$camName"".log" ; sudo cp $newVideoFile $NASSHARE/Cam/ ; sudo rm -f $newVideoFile ) &
-			else 
-				LogFull ".   camOptions is not supported : $camOptions"
-			fi
-
-			# to prevent all recording to start at the same time
-			#sleep 1
+			#newVideoFile=$NASSHARE/Cam/$(CurrentDateTimeNano)_Grab-$camName.avi
+			
+			#cvlc -q --sout "#transcode{acodec=mp4a,ab=128,channels=2,samplerate=44100}:std{accesle,mux=mp4,dst=$newVideoFile}" "http://192.168.1.84/cgi-bin/hi3510/snap.cgi?&-getstream" 1>/dev/null 2>&1 &
+			
+			LogFull ".   cvlc --sout #transcode{acodec=mp4a,ab=32,channels=2,samplerate=44100}:std{access=file,mux=mp4,dst=$newVideoFile} $camUrl"
+			cvlc --sout "#transcode{acodec=mp4a,ab=32,channels=2,samplerate=44100}:std{access=file,mux=mp4,dst=$newVideoFile}" $camUrl &>/$sessionDir/"$camName"".log" &						
+			
+			vlcPid=$!
+			RegisterNewRecordProcessPid $vlcPid
+			sleep 1
 		fi
-	done < $CAMERA_CONF_FILE	
+	done < $CAMERA_CONF_FILE
 }
 
 #-----------------------------------------------------------------------------------------------------------------------#
@@ -146,6 +142,7 @@ KillAllCurrentRegisteredProcesses()
 	LogFull "Try to kill all current vlc processes"	
 	KillVlcProcessesWithPidInFile $VLC_RECORD_PROCESSES
 }
+
 
 #-----------------------------------------------------------------------------------------------------------------------#
 # Kill all vlc processes from pid of specified file
@@ -184,6 +181,9 @@ sudo ln -s $logfile $lastlogfile
 LogFull "-------------------------------------------------------"
 LogFull "Start of : script $scriptName $1"
 
+#KillAllOldRegisteredProcesses
+#KillAllCurrentRegisteredProcesses
+
 res=$(ls $pidfile 2>/dev/null | wc -l)
 if [ $res -eq 0 ]; then
 	sudo echo $$ > $pidfile	
@@ -211,20 +211,30 @@ while [ $(MustRun) -eq 1 ]; do
 		find $NASSHARE/Cam/ -name "*.avi" -mtime +7 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done
 		find $sessionDir	-name "*.log" -mtime +7 | while read filepath; do { echo Remove $filepath; rm -f $filepath; } done
 				
+		LogFull "Process new file loop recording rotation iteration"	
+		# to make sure the file exists
+		touch $VLC_RECORD_PROCESSES
+
+		#sudo mv $VLC_RECORD_PROCESSES $VLC_RECORD_PROCESSES_OLD
+		KillAllCurrentRegisteredProcesses
+
 		ProcessRecordingCheckIteration
+		#sleep 1
+		# KillAllOldRegisteredProcesses
 		
 		cpt=0
-		while [ $cpt -le $WAITDURATION ]; do
+		while [ $cpt -le 60 ]; do
 			cpt=$(($cpt +1))
 			sleep 1
 			if [ $(MustRun) -eq 0 ]; then
-				cpt=$WAITDURATIONFORRECORD
+				cpt=61
 			fi
-		done
+		done		
+		
 	fi
 done
 
-sudo killall ffmpeg
-sudo killall vlc
+#KillAllOldRegisteredProcesses
+KillAllCurrentRegisteredProcesses
 
 LogFull "End of : $scriptName $1"
